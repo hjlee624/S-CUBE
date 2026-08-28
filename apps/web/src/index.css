@@ -3,10 +3,80 @@
 @theme {
   --font-sans: "Pretendard Variable", Pretendard, "Segoe UI", "Malgun Gothic", sans-serif;
   --font-mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+
+  /* 모션 토큰 — 스프링감 있는 ease-out-expo 계열 */
+  --animate-fade-in: fade-in 0.25s ease-out both;
+  --animate-fade-in-up: fade-in-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-toast-in: toast-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-banner-in: banner-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-modal-in: modal-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-indeterminate: indeterminate 1.1s ease-in-out infinite;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes banner-in {
+    from {
+      opacity: 0;
+      transform: translateY(-16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes modal-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes indeterminate {
+    0% {
+      transform: translateX(-120%);
+    }
+    100% {
+      transform: translateX(320%);
+    }
+  }
 }
 
 html,
 body,
 #root {
   height: 100%;
+}
+
+/* 캔버스 위 커서·스크롤 관성 억제 */
+body {
+  overscroll-behavior: none;
 }

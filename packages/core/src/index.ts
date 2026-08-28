@@ -8,4 +8,22 @@
  * - station/  측점 파싱·정렬·불연속 처리 (Phase 3)
  */
 
+// dxf/ — 파싱 파이프라인
+export { aciToRgb } from './dxf/aci.ts';
+export {
+  MAX_INSERT_DEPTH,
+  UNSUPPORTED_KEY_DEPTH_EXCEEDED,
+  UNSUPPORTED_KEY_MISSING_BLOCK,
+} from './dxf/expand.ts';
+export { parseAndNormalizeDxf } from './dxf/pipeline.ts';
+// geometry/ — 렌더·측정 공용 프리미티브
+export { entityBounds, mergeBounds } from './geometry/bounds.ts';
+export {
+  applyMat3,
+  composeMat3,
+  IDENTITY_MAT3,
+  mat3FromInsert,
+} from './geometry/mat3.ts';
+export { bulgeToArc, distance, polylineLength } from './geometry/primitives.ts';
+// quantity/
 export { averageEndArea } from './quantity/volume.ts';

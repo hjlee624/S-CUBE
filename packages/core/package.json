@@ -13,6 +13,7 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@s-cube/schema": "workspace:*"
+    "@s-cube/schema": "workspace:*",
+    "dxf-parser": "^1.1.2"
   }
 }

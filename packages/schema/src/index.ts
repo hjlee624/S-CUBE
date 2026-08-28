@@ -5,14 +5,26 @@
  * 길이 단위는 내부적으로 항상 미터(m)로 정규화한다.
  */
 
-/** .scube 프로젝트 파일 스키마 버전 */
-export const SCHEMA_VERSION = 1;
-
-/** 2D 좌표 (도면 좌표계) */
-export interface Vec2 {
-  x: number;
-  y: number;
-}
-
-/** 2D 아핀 변환 행렬 (row-major: [a, b, tx, c, d, ty]) — 블록 전개용 */
-export type Mat3 = readonly [number, number, number, number, number, number];
+export { type Calibration, CalibrationSchema } from './calibration.ts';
+export type { DrawingModel, Layer } from './drawing.ts';
+export type {
+  EntityHandle,
+  EntityOrigin,
+  Loop,
+  NArc,
+  NCircle,
+  NDimension,
+  NEntity,
+  NHatch,
+  NLine,
+  NPolyline,
+  NText,
+  PVertex,
+} from './entity.ts';
+export type { Bounds, Mat3, Vec2 } from './geometry.ts';
+export {
+  INS_UNITS_TO_METERS,
+  type InsUnits,
+  insUnitsLabel,
+} from './units.ts';
+export { SCHEMA_VERSION } from './version.ts';
