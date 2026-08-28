@@ -19,6 +19,61 @@ DXF 도면에서 단면적과 연장을 직접 취득하고, 재료 규격을 �
 모든 수량은 **어느 도면의 어느 객체에서 나왔는지** 끝까지 역추적된다.
 엑셀 셀에는 값이 아니라 **수식**이 들어가므로 감리·발주처가 계산 과정을 확인할 수 있다.
 
+## 동작 원리
+
+### 산출 파이프라인
+
+```mermaid
+flowchart LR
+    DXF["DXF 파일"] -->|"① Web Worker 파싱"| RAW["RawDxf<br/>header · tables · blocks · entities"]
+    RAW -->|"② 블록 재귀 전개<br/>변환행렬 누적 · 정규화"| DM["DrawingModel<br/>NEntity[] (world 좌표)"]
+    DM -->|"③ 캘리브레이션<br/>scale = 실거리 ÷ 도면거리"| CAL["CalibratedDrawing"]
+    CAL -->|"④ 클릭 히트테스트<br/>R-tree → 정밀 판정"| MEAS["Measurement<br/>면적 ㎡ · 연장 m<br/>+ 원본 handle (역추적)"]
+    MEAS -->|"⑤ 측점·구간 배치"| SEG["StationSection<br/>Segment"]
+    SEG -->|"⑥ 양단면평균법"| TAKE["TakeoffItem<br/>basis: FormulaTree"]
+    TAKE -->|"⑦ 수식 렌더"| XLSX["수량산출서.xlsx<br/>값이 아닌 수식 삽입"]
+```
+
+### 축척 캘리브레이션 — 검증 없이는 산출하지 않는다
+
+```mermaid
+flowchart LR
+    START["도면 로드"] --> INS["$INSUNITS 헤더로<br/>단위 추정·표시"]
+    INS --> PICK["기준선 2점 클릭<br/>(끝점·중점 스냅)"]
+    PICK --> INPUT["실제 거리(m) 입력"]
+    INPUT --> SCALE["scale = 실거리 ÷ 도면거리"]
+    SCALE --> VERIFY{"DIMENSION 대조<br/>오차 % 확인"}
+    VERIFY -->|"통과"| ON["측정 도구 활성화"]
+    VERIFY -->|"미완료"| OFF["면적·연장 산출 차단<br/>+ 경고 배너"]
+```
+
+### 체적 산출 — 양단면평균법과 전/후 불연속 처리
+
+```mermaid
+flowchart TD
+    SORT["측점 파싱·정렬<br/>chainage = No × 측점간격 + plus"] --> DUP{"동일 chainage에<br/>(전)·(후) 2개 단면?"}
+    DUP -->|"아니오"| SEG["인접 측점 쌍으로 구간 생성<br/>L = chainage 차"]
+    DUP -->|"예"| SPLIT["앞 구간 종점 = (전) 단면<br/>뒤 구간 시점 = (후) 단면<br/>(전)↔(후) 사이 연장 = 0"]
+    SPLIT --> MISS{"(전) 단면 결측?"}
+    MISS -->|"예"| ERR["에러 승격 — 산출 차단<br/>(조용히 0 처리 금지)"]
+    MISS -->|"아니오"| SEG
+    SEG --> VOL["V = (A1 + A2) ÷ 2 × L"]
+    VOL --> TREE["FormulaNode 트리로 보관<br/>숫자가 아니라 계산식"]
+    TREE --> RENDER["엑셀 수식 렌더<br/>=(상세!D12+상세!D13)/2*상세!E12"]
+```
+
+### 패키지 구조
+
+```mermaid
+graph TD
+    WEB["apps/web<br/>Vite 8 + React 19<br/>Canvas 렌더러 · 측정 UI"] --> CORE
+    SRV["apps/server<br/>Hono · 127.0.0.1:5321<br/>대용량 파싱 · 파일 I/O"] --> CORE
+    XL["packages/xlsx<br/>ExcelJS 수량산출서"] --> SCHEMA
+    CORE["packages/core ★ 순수 계산<br/>dxf · geometry · quantity · station"] --> SCHEMA
+    WEB --> SCHEMA["packages/schema<br/>공통 타입 + Zod"]
+    SRV --> SCHEMA
+```
+
 ## 설계 원칙
 
 - **완전자동이 아니라 반자동.** 실무 도면은 폐합되어 있지 않고 레이어 규칙도 제각각이다.
@@ -68,7 +123,7 @@ pnpm build     # 전체 빌드
 | Phase | 내용 | 상태 |
 |---|---|---|
 | 0 | 스캐폴딩·툴체인 | **완료** |
-| 1 | DXF 로드·렌더·캘리브레이션 | 진행 중 |
+| 1 | DXF 로드·렌더·캘리브레이션 | **구현 완료** — 실도면 검증 대기 |
 | 2 | 면적·연장 측정 | 예정 |
 | 3 | 측점·구간·양단면평균법 | 예정 |
 | 4 | 규격 마스터 + 엑셀 출력 **(MVP)** | 예정 |
