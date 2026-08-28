@@ -8,7 +8,12 @@
 import { setSceneModel } from '../canvas/scene.ts';
 import { useAppStore } from '../store/index.ts';
 import type { ParseRequest, ParseResponse } from '../workers/messages.ts';
-import { convertDwgFile, dxfNameFromDwg, fetchDwgRoute } from './convert-api.ts';
+import {
+  backendDisplayName,
+  convertDwgFile,
+  dxfNameFromDwg,
+  fetchDwgRoute,
+} from './convert-api.ts';
 import { pushRecentFile } from './recent-files.ts';
 
 let activeWorker: Worker | null = null;
@@ -58,13 +63,17 @@ async function openDwgFile(file: File, seq: number): Promise<void> {
     return;
   }
   if (route.kind === 'guide') {
-    // ODA File Converter 미설치 — 설치 안내 모달 (재시도 버튼 포함)
+    // 변환 백엔드(LibreDWG/ODA) 미설치 — 설치 안내 모달 (재시도 버튼 포함)
     store.showDwgGuide(file, route.guide);
     return;
   }
 
-  // 변환 진행 오버레이 — 파싱 오버레이의 'convert' 단계 재사용 (indeterminate)
-  store.startLoading(file.name);
+  // 변환 진행 오버레이 — 파싱 오버레이의 'convert' 단계 재사용 (indeterminate).
+  // 서버가 알려준 백엔드가 있으면 라벨에 병기: 'DWG 변환 중 (LibreDWG)'
+  store.startLoading(
+    file.name,
+    route.backend !== undefined ? backendDisplayName(route.backend) : undefined,
+  );
   store.setLoadProgress('convert', -1);
   try {
     const dxfText = await convertDwgFile(file);

@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  backendDisplayName,
   convertErrorMessage,
   dxfNameFromDwg,
   parseConvertStatus,
@@ -26,13 +27,27 @@ describe('routeDwgByStatus', () => {
     expect(routeDwgByStatus({ ok: true, body: { unexpected: true } }).kind).toBe('server-down');
   });
 
-  it('installed=true → convert 경로', () => {
+  it('installed=true → convert 경로 (backend 없는 구버전 응답도 수용)', () => {
     expect(
       routeDwgByStatus({
         ok: true,
         body: { installed: true, path: 'C:/Program Files/ODA/x/ODAFileConverter.exe', guide: 'g' },
       }),
     ).toEqual({ kind: 'convert' });
+  });
+
+  it('installed=true + backend → convert 경로에 backend 전달 (변환 중 라벨 병기용)', () => {
+    expect(
+      routeDwgByStatus({
+        ok: true,
+        body: {
+          installed: true,
+          backend: 'libredwg',
+          path: 'C:/Users/x/tools/libredwg/dwg2dxf.exe',
+          guide: 'g',
+        },
+      }),
+    ).toEqual({ kind: 'convert', backend: 'libredwg' });
   });
 
   it('installed=false → 서버가 준 설치 가이드로 guide 경로', () => {
@@ -53,6 +68,30 @@ describe('parseConvertStatus', () => {
     expect(parseConvertStatus({ installed: true })).toBeNull();
     expect(parseConvertStatus(null)).toBeNull();
     expect(parseConvertStatus('text')).toBeNull();
+  });
+
+  it("backend 필드('libredwg'|'oda')를 파싱한다", () => {
+    expect(parseConvertStatus({ installed: true, guide: 'g', backend: 'libredwg' })).toEqual({
+      installed: true,
+      guide: 'g',
+      backend: 'libredwg',
+    });
+    expect(parseConvertStatus({ installed: true, guide: 'g', backend: 'oda' })?.backend).toBe(
+      'oda',
+    );
+  });
+
+  it('알 수 없는 backend 값은 무시한다 (전방 호환 — 응답 자체는 유효)', () => {
+    const status = parseConvertStatus({ installed: true, guide: 'g', backend: 'teigha' });
+    expect(status).toEqual({ installed: true, guide: 'g' });
+    expect(status?.backend).toBeUndefined();
+  });
+});
+
+describe('backendDisplayName', () => {
+  it("변환 중 라벨 병기용 표시명 — 'LibreDWG' / 'ODA'", () => {
+    expect(backendDisplayName('libredwg')).toBe('LibreDWG');
+    expect(backendDisplayName('oda')).toBe('ODA');
   });
 });
 

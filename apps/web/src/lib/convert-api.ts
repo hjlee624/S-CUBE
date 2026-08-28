@@ -1,6 +1,6 @@
 /**
  * DWG→DXF 변환 API 클라이언트 (FR-1.2) — 로컬 서버(127.0.0.1:5321, vite 프록시 /api)의
- * ODA File Converter 변환 엔드포인트를 소비한다.
+ * 변환 엔드포인트(LibreDWG dwg2dxf 1순위 / ODA File Converter 폴백)를 소비한다.
  *
  * 순수 로직(응답 파싱·상태 분기)은 fetch와 분리해 단위 테스트한다 (convert-api.test.ts).
  * 주의: vite 프록시는 서버 미기동 시 fetch reject가 아니라 502/500 텍스트를 돌려주므로,
@@ -11,9 +11,18 @@
 export const SERVER_DOWN_MESSAGE =
   '로컬 서버(pnpm dev)가 꺼져 있어 DWG 자동 변환 불가 — DXF로 저장 후 사용';
 
+/** DWG 변환 백엔드 식별자 — 서버 status 응답의 backend 필드 (LibreDWG 1순위) */
+export type ConvertBackendId = 'libredwg' | 'oda';
+
+/** 백엔드 표시명 — 변환 진행 라벨 'DWG 변환 중 (LibreDWG)' 등에 사용 */
+export function backendDisplayName(backend: ConvertBackendId): string {
+  return backend === 'libredwg' ? 'LibreDWG' : 'ODA';
+}
+
 /** GET /api/convert/status 응답 계약 */
 export interface ConvertStatus {
   installed: boolean;
+  backend?: ConvertBackendId;
   path?: string;
   guide: string;
 }
@@ -23,15 +32,16 @@ export function parseConvertStatus(value: unknown): ConvertStatus | null {
   if (typeof value !== 'object' || value === null) return null;
   const rec = value as Record<string, unknown>;
   if (typeof rec.installed !== 'boolean' || typeof rec.guide !== 'string') return null;
-  const path = typeof rec.path === 'string' ? rec.path : undefined;
-  return path !== undefined
-    ? { installed: rec.installed, path, guide: rec.guide }
-    : { installed: rec.installed, guide: rec.guide };
+  const status: ConvertStatus = { installed: rec.installed, guide: rec.guide };
+  if (typeof rec.path === 'string') status.path = rec.path;
+  // 알 수 없는 backend 값은 무시 — 구버전 서버·전방 호환
+  if (rec.backend === 'libredwg' || rec.backend === 'oda') status.backend = rec.backend;
+  return status;
 }
 
 /** .dwg 드롭 시 진행 경로 */
 export type DwgRoute =
-  | { kind: 'convert' }
+  | { kind: 'convert'; backend?: ConvertBackendId }
   | { kind: 'guide'; guide: string }
   | { kind: 'server-down'; message: string };
 
@@ -45,7 +55,9 @@ export function routeDwgByStatus(result: StatusFetchResult): DwgRoute {
   // 프록시 502/500·비계약 응답 → 서버 미기동으로 간주
   if (status === null) return { kind: 'server-down', message: SERVER_DOWN_MESSAGE };
   if (!status.installed) return { kind: 'guide', guide: status.guide };
-  return { kind: 'convert' };
+  return status.backend !== undefined
+    ? { kind: 'convert', backend: status.backend }
+    : { kind: 'convert' };
 }
 
 /** 'plan.dwg' → 'plan.dxf' (확장자 대소문자 무관, 확장자 없으면 .dxf 부여) */
@@ -60,7 +72,7 @@ export function convertErrorMessage(status: number, body: unknown): string {
     if (typeof message === 'string' && message !== '') return message;
   }
   if (status === 413) return 'DWG 파일이 50MB 제한을 초과했습니다';
-  if (status === 503) return 'ODA File Converter가 설치되어 있지 않습니다';
+  if (status === 503) return 'DWG 변환 도구(LibreDWG 또는 ODA)가 설치되어 있지 않습니다';
   if (status === 504) return 'DWG 변환 시간 초과(60초) — DXF로 저장 후 사용하세요';
   return 'DWG 변환에 실패했습니다 — CAD에서 DXF(ASCII)로 저장 후 사용하세요';
 }

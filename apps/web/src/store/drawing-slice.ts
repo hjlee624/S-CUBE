@@ -10,13 +10,19 @@ export const createDrawingSlice: StateCreator<AppState, [], [], DrawingSlice> = 
   model: null,
   fileName: null,
   storageKey: null,
-  loading: { active: false, stage: null, progress: 0, fileName: null },
+  loading: { active: false, stage: null, progress: 0, fileName: null, convertBackend: null },
   loadError: null,
   layerVisibility: {},
 
-  startLoading: (fileName) =>
+  startLoading: (fileName, convertBackend) =>
     set({
-      loading: { active: true, stage: 'read', progress: 0, fileName },
+      loading: {
+        active: true,
+        stage: 'read',
+        progress: 0,
+        fileName,
+        convertBackend: convertBackend ?? null,
+      },
       loadError: null,
     }),
 
@@ -33,7 +39,7 @@ export const createDrawingSlice: StateCreator<AppState, [], [], DrawingSlice> = 
       fileName,
       storageKey,
       layerVisibility,
-      loading: { active: false, stage: null, progress: 0, fileName: null },
+      loading: { active: false, stage: null, progress: 0, fileName: null, convertBackend: null },
       loadError: null,
       // 새 도면 로드 → 도구·대조 상태 초기화, 저장된 캘리브레이션 복원
       calibration: restored,
@@ -46,7 +52,7 @@ export const createDrawingSlice: StateCreator<AppState, [], [], DrawingSlice> = 
 
   failLoading: (message) =>
     set({
-      loading: { active: false, stage: null, progress: 0, fileName: null },
+      loading: { active: false, stage: null, progress: 0, fileName: null, convertBackend: null },
       loadError: message,
     }),
 

@@ -246,7 +246,11 @@ export function CanvasStage() {
               {/* 단계 라벨 전환 — key 교체로 blur-in 스왑, grid 겹침으로 레이아웃 점프 방지 */}
               <span className="inline-grid overflow-hidden text-zinc-200">
                 <span key={loading.stage ?? 'ready'} className="animate-label-swap [grid-area:1/1]">
-                  {loading.stage !== null ? PARSE_STAGE_LABELS[loading.stage] : '준비 중'}
+                  {loading.stage === null
+                    ? '준비 중'
+                    : loading.stage === 'convert' && loading.convertBackend !== null
+                      ? `${PARSE_STAGE_LABELS.convert} (${loading.convertBackend})`
+                      : PARSE_STAGE_LABELS[loading.stage]}
                 </span>
               </span>
               <span className="font-mono text-xs text-emerald-400 tabular-nums">

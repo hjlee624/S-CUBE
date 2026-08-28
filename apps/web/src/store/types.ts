@@ -15,6 +15,8 @@ export interface LoadingState {
   /** 0~1, indeterminate는 -1 */
   progress: number;
   fileName: string | null;
+  /** DWG 변환 백엔드 표시명('LibreDWG' 등) — convert 단계 라벨에 병기, 그 외 null */
+  convertBackend: string | null;
 }
 
 export interface ToastState {
@@ -32,7 +34,8 @@ export interface DrawingSlice {
   loadError: string | null;
   /** 레이어명 → 표시 여부 (렌더러가 getState()로 소비) */
   layerVisibility: Record<string, boolean>;
-  startLoading: (fileName: string) => void;
+  /** convertBackend: DWG 변환 시 백엔드 표시명('LibreDWG' 등) — 라벨 병기용 */
+  startLoading: (fileName: string, convertBackend?: string) => void;
   setLoadProgress: (stage: ParseStage, progress: number) => void;
   /** 모델 확정 + 저장된 캘리브레이션 자동 복원 (P1-13) */
   finishLoading: (model: DrawingModel, fileName: string) => void;

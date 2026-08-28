@@ -1,7 +1,8 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
+import { DWG_GUIDE_MESSAGE, findConverter } from './lib/backend.ts';
 import { ConvertError, convertDwgToDxf, looksLikeDwg, MAX_DWG_BYTES } from './lib/convert.ts';
-import { findOdaConverter, ODA_DOWNLOAD_URL, ODA_GUIDE_MESSAGE } from './lib/oda.ts';
+import { LIBREDWG_DOWNLOAD_URL } from './lib/libredwg.ts';
 
 /** 보안: 로컬 전용 바인딩. 외부 인터페이스에 절대 노출하지 않는다 (NFR-4). */
 const HOST = '127.0.0.1';
@@ -17,13 +18,16 @@ app.get('/api/health', (c) =>
   }),
 );
 
-/** ODA File Converter 설치 여부 — 미설치면 클라이언트가 설치 안내 모달을 띄운다 */
+/**
+ * DWG 변환 백엔드(LibreDWG 1순위 / ODA 폴백) 설치 여부 —
+ * 미설치면 클라이언트가 설치 안내 모달을 띄운다.
+ */
 app.get('/api/convert/status', (c) => {
-  const exePath = findOdaConverter();
+  const converter = findConverter();
   return c.json({
-    installed: exePath !== null,
-    ...(exePath !== null ? { path: exePath } : {}),
-    guide: ODA_GUIDE_MESSAGE,
+    installed: converter !== null,
+    ...(converter !== null ? { backend: converter.backend, path: converter.path } : {}),
+    guide: DWG_GUIDE_MESSAGE,
   });
 });
 
@@ -42,14 +46,14 @@ app.post('/api/convert', async (c) => {
     }
   }
 
-  const exePath = findOdaConverter();
-  if (exePath === null) {
+  const converter = findConverter();
+  if (converter === null) {
     return c.json(
       {
         code: 'NOT_INSTALLED',
-        message: `ODA File Converter가 설치되어 있지 않습니다 — ${ODA_DOWNLOAD_URL} 에서 무료로 내려받아 설치한 뒤 다시 시도하세요.`,
-        guide: ODA_GUIDE_MESSAGE,
-        downloadUrl: ODA_DOWNLOAD_URL,
+        message: `DWG 변환 도구가 설치되어 있지 않습니다 — LibreDWG(무료·등록 불필요)를 ${LIBREDWG_DOWNLOAD_URL} 에서 내려받아 설치한 뒤 다시 시도하세요.`,
+        guide: DWG_GUIDE_MESSAGE,
+        downloadUrl: LIBREDWG_DOWNLOAD_URL,
       },
       503,
     );
@@ -90,8 +94,11 @@ app.post('/api/convert', async (c) => {
   }
 
   try {
-    const dxfText = await convertDwgToDxf(bytes, exePath);
-    return c.text(dxfText, 200, { 'X-Converted-From': 'dwg' });
+    const dxfText = await convertDwgToDxf(bytes, converter);
+    return c.text(dxfText, 200, {
+      'X-Converted-From': 'dwg',
+      'X-Convert-Backend': converter.backend,
+    });
   } catch (err) {
     if (err instanceof ConvertError) {
       return c.json({ code: err.code, message: err.message }, err.code === 'TIMEOUT' ? 504 : 422);
