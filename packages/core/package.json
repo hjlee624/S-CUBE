@@ -1,0 +1,18 @@
+{
+  "name": "@s-cube/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "S-CUBE 순수 계산 로직 — DXF 파싱·기하 연산·수량 계산·단위 환산 (DOM/Node API 비의존)",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@s-cube/schema": "workspace:*"
+  }
+}

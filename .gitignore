@@ -36,3 +36,10 @@ test-results/
 
 # 삭제 대기 (git 잠금/임시 파일 잔여물)
 _to_delete/
+
+# AI 에이전트 로컬 설정
+.claude/
+.omc/
+
+# 타입 선언 출력 (apps/web)
+dist-types/

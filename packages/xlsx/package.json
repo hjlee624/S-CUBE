@@ -1,0 +1,18 @@
+{
+  "name": "@s-cube/xlsx",
+  "version": "0.0.0",
+  "private": true,
+  "description": "S-CUBE 수량산출서 xlsx 생성 — FormulaNode → 엑셀 수식 렌더 (Phase 4)",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@s-cube/schema": "workspace:*"
+  }
+}

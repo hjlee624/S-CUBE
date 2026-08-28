@@ -1,0 +1,21 @@
+{
+  "name": "@s-cube/server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "S-CUBE 로컬 서버 — 대용량 DXF 파싱·파일 I/O·xlsx 생성 (127.0.0.1 전용)",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.ts",
+    "start": "node src/index.ts",
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "@s-cube/core": "workspace:*",
+    "@s-cube/schema": "workspace:*",
+    "hono": "^4.13.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0"
+  }
+}

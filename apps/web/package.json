@@ -1,0 +1,27 @@
+{
+  "name": "@s-cube/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "S-CUBE 웹 앱 — 도면 뷰어·측정·수량산출 UI (Vite 8 + React 19)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --build && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@s-cube/core": "workspace:*",
+    "@s-cube/schema": "workspace:*",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.2.2"
+  }
+}

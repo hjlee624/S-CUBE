@@ -1,0 +1,25 @@
+{
+  "name": "s-cube",
+  "version": "0.0.0",
+  "private": true,
+  "description": "S-CUBE (Saman Quantity Cube) — 단면(㎡) × 연장(m) = 체적(㎥). 도면에서 바로 수량을 산출하는 토목 수량산출 도구",
+  "type": "module",
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "check": "biome check --write . && tsc --build",
+    "check:ci": "biome ci . && tsc --build",
+    "test": "vitest run",
+    "test:w": "vitest",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.11",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}
