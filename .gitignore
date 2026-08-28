@@ -1,0 +1,38 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build
+dist/
+build/
+*.tsbuildinfo
+
+# env / local
+.env
+.env.local
+.s-cube-cache/
+~/.s-cube/
+
+# editor
+.DS_Store
+Thumbs.db
+*.swp
+
+# 실도면 · 실프로젝트 파일 (fixtures 예외)
+*.dwg
+*.dxf
+*.scube
+!fixtures/**/*.dxf
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# test output
+coverage/
+playwright-report/
+test-results/
+
+# 삭제 대기 (git 잠금/임시 파일 잔여물)
+_to_delete/
