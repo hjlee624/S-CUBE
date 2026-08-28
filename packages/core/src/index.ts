@@ -26,4 +26,28 @@ export {
 } from './geometry/mat3.ts';
 export { bulgeToArc, distance, polylineLength } from './geometry/primitives.ts';
 // quantity/
+export {
+  applyLoss,
+  areaThickness,
+  contactLength,
+  convertUnit,
+  countTimes,
+  sectionLength,
+} from './quantity/calc.ts';
+export {
+  evaluate,
+  fAdd,
+  fAvgEndArea,
+  fConst,
+  fDiv,
+  fLoss,
+  fMul,
+  fRef,
+  fRound,
+  fSub,
+  fSum,
+  type RefResolver,
+  renderText,
+} from './quantity/formula.ts';
+export { MATERIAL_PRESETS } from './quantity/presets.ts';
 export { averageEndArea } from './quantity/volume.ts';

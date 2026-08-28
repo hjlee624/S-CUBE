@@ -4,10 +4,15 @@
  */
 import type { DrawingModel } from '@s-cube/schema';
 
-/** 파싱 단계 — 진행바 라벨링에 사용 */
-export type ParseStage = 'read' | 'parse' | 'normalize';
+/**
+ * 파싱 단계 — 진행바 라벨링에 사용.
+ * 'convert'는 워커가 아니라 메인 스레드의 DWG→DXF 서버 변환(FR-1.2) 단계 —
+ * 동일한 로딩 오버레이를 재사용하기 위해 여기에 합류한다.
+ */
+export type ParseStage = 'convert' | 'read' | 'parse' | 'normalize';
 
 export const PARSE_STAGE_LABELS: Readonly<Record<ParseStage, string>> = {
+  convert: 'DWG 변환 중',
   read: '파일 읽기',
   parse: 'DXF 파싱',
   normalize: '정규화·블록 전개',

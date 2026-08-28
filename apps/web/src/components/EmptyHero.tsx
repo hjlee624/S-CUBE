@@ -79,7 +79,7 @@ export function EmptyHero() {
           className="glow-card mt-8 animate-fade-in-up rounded-2xl bg-zinc-900/70 px-10 py-7 text-center backdrop-blur-sm"
           style={{ animationDelay: '520ms' }}
         >
-          <p className="text-sm text-zinc-400">DXF 파일을 이곳에 끌어다 놓거나</p>
+          <p className="text-sm text-zinc-400">DXF·DWG 파일을 이곳에 끌어다 놓거나</p>
           <button
             type="button"
             onClick={pickDxfFile}
@@ -89,7 +89,9 @@ export function EmptyHero() {
             {/* shine 스윕 — 시선 유도 1회성 루프 */}
             <span className="pointer-events-none absolute inset-y-0 left-0 w-1/3 animate-shine bg-gradient-to-r from-transparent via-white/40 to-transparent" />
           </button>
-          <p className="mt-3 text-[11px] text-zinc-600">DWG는 DXF로 변환 후 사용하세요</p>
+          <p className="mt-3 text-[11px] text-zinc-600">
+            DWG는 로컬 서버가 자동 변환합니다 (ODA File Converter)
+          </p>
           {loadError !== null && (
             <p className="mt-4 max-w-xs animate-fade-in-up rounded-md border border-red-900/60 bg-red-950/40 px-3 py-2 text-xs text-red-400">
               파싱 실패: {loadError}

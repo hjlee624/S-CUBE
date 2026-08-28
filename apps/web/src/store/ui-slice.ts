@@ -10,6 +10,7 @@ let toastSeq = 0;
 export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get) => ({
   activeTool: 'pan',
   toast: null,
+  dwgGuide: null,
 
   setActiveTool: (tool) => {
     const s = get();
@@ -33,4 +34,8 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   dismissToast: (id) => {
     if (get().toast?.id === id) set({ toast: null });
   },
+
+  showDwgGuide: (file, guide) => set({ dwgGuide: { file, guide } }),
+
+  dismissDwgGuide: () => set({ dwgGuide: null }),
 });

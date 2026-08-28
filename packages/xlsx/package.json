@@ -13,6 +13,7 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@s-cube/schema": "workspace:*"
+    "@s-cube/schema": "workspace:*",
+    "exceljs": "^4.4.0"
   }
 }

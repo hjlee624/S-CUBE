@@ -5,6 +5,7 @@
 import { CalibrationBanner } from './components/CalibrationBanner.tsx';
 import { CalibrationModal } from './components/CalibrationModal.tsx';
 import { CanvasStage } from './components/CanvasStage.tsx';
+import { DwgConvertModal } from './components/DwgConvertModal.tsx';
 import { HeaderBar } from './components/HeaderBar.tsx';
 import { LayerPanel } from './components/LayerPanel.tsx';
 import { RightPanel } from './components/RightPanel.tsx';
@@ -25,6 +26,7 @@ export function App() {
 
       <StatusBar />
       <CalibrationModal />
+      <DwgConvertModal />
       <Toast />
     </div>
   );

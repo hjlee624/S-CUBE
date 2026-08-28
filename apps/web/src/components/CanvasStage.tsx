@@ -225,7 +225,7 @@ export function CanvasStage() {
         <div className="pointer-events-none absolute inset-2 z-20 animate-fade-in rounded-xl border-2 border-dashed border-emerald-400/70 bg-emerald-400/5 backdrop-blur-[1px]">
           <div className="flex h-full items-center justify-center">
             <p className="animate-modal-in rounded-lg bg-zinc-900/90 px-4 py-2 font-mono text-sm text-emerald-300 shadow-lg shadow-emerald-500/20">
-              놓아서 DXF 열기
+              놓아서 도면 열기 (DXF·DWG)
             </p>
           </div>
         </div>

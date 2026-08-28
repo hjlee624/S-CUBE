@@ -70,12 +70,24 @@ export interface CalibrationSlice {
   setDimCheck: (check: DimensionCheck | null) => void;
 }
 
+/** ODA File Converter 미설치 안내 모달 상태 (FR-1.2 DWG 자동 변환) */
+export interface DwgGuideState {
+  /** '설치 후 재시도'용 원본 DWG 파일 */
+  file: File;
+  /** 서버가 내려준 한국어 설치 안내 (다운로드 URL 포함) */
+  guide: string;
+}
+
 export interface UiSlice {
   activeTool: ToolId;
   toast: ToastState | null;
+  /** null이면 모달 닫힘 */
+  dwgGuide: DwgGuideState | null;
   setActiveTool: (tool: ToolId) => void;
   showToast: (message: string, tone?: ToastState['tone']) => void;
   dismissToast: (id: number) => void;
+  showDwgGuide: (file: File, guide: string) => void;
+  dismissDwgGuide: () => void;
 }
 
 export type AppState = DrawingSlice & ViewportSlice & CalibrationSlice & UiSlice;

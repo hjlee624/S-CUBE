@@ -23,6 +23,25 @@ export type {
 } from './entity.ts';
 export type { Bounds, Mat3, Vec2 } from './geometry.ts';
 export {
+  CALC_TYPES,
+  type CalcType,
+  CalcTypeSchema,
+  type FormulaNode,
+  FormulaNodeSchema,
+  type MaterialSpec,
+  MaterialSpecSchema,
+  type TakeoffItem,
+  TakeoffItemSchema,
+} from './quantity.ts';
+export {
+  type Segment,
+  SegmentSchema,
+  type Station,
+  StationSchema,
+  type StationSection,
+  StationSectionSchema,
+} from './station.ts';
+export {
   INS_UNITS_TO_METERS,
   type InsUnits,
   insUnitsLabel,
