@@ -5,6 +5,7 @@
 import { setSceneModel } from '../canvas/scene.ts';
 import { useAppStore } from '../store/index.ts';
 import type { ParseRequest, ParseResponse } from '../workers/messages.ts';
+import { pushRecentFile } from './recent-files.ts';
 
 let activeWorker: Worker | null = null;
 
@@ -57,6 +58,7 @@ export function openDrawingFile(file: File): void {
       case 'done': {
         setSceneModel(msg.model);
         s.finishLoading(msg.model, name);
+        pushRecentFile(name, msg.model.entities.length);
         const after = useAppStore.getState();
         const restoredNote = after.calibration !== null ? ' · 저장된 캘리브레이션 복원됨' : '';
         s.showToast(

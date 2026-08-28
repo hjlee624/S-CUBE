@@ -50,7 +50,7 @@ export function CalibrationModal() {
       aria-modal="true"
       aria-label="실제 거리 입력"
     >
-      <div className="w-96 animate-modal-in rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl">
+      <div className="glow-card w-96 animate-modal-in rounded-xl bg-zinc-900 p-5">
         <p className="text-sm font-semibold text-zinc-100">실제 거리 입력</p>
         <p className="mt-1 text-xs text-zinc-500">
           선택한 두 점 사이의 실제 거리를 미터(m)로 입력하세요.
@@ -63,8 +63,16 @@ export function CalibrationModal() {
           </div>
           <div className="mt-1 flex justify-between">
             <span>산출 축척</span>
-            <span className={previewScale !== null ? 'text-emerald-300' : 'text-zinc-600'}>
-              {previewScale !== null ? formatScaleLabel(previewScale) : '—'}
+            {/* 입력에 따라 실시간 갱신 — tick으로 미세 반응 */}
+            <span className="inline-grid overflow-hidden text-right">
+              <span
+                key={previewScale ?? 'empty'}
+                className={`animate-tick [grid-area:1/1] ${
+                  previewScale !== null ? 'text-emerald-300' : 'text-zinc-600'
+                }`}
+              >
+                {previewScale !== null ? formatScaleLabel(previewScale) : '—'}
+              </span>
             </span>
           </div>
         </div>

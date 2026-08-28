@@ -27,8 +27,10 @@ export function HeaderBar() {
   const setActiveTool = useAppStore((s) => s.setActiveTool);
 
   return (
-    <header className="z-40 flex h-12 shrink-0 items-center gap-3 border-b border-zinc-800 bg-zinc-950/95 px-4">
-      <h1 className="font-mono text-sm font-bold tracking-widest text-emerald-400">S-CUBE</h1>
+    <header className="z-40 flex h-12 shrink-0 animate-panel-top items-center gap-3 border-b border-zinc-800 bg-zinc-950/95 px-4">
+      <h1 className="bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-400 bg-clip-text font-mono text-sm font-bold tracking-widest text-transparent">
+        S-CUBE
+      </h1>
       <span className="hidden text-xs text-zinc-600 lg:inline">단면(㎡) × 연장(m) = 체적(㎥)</span>
 
       <div className="mx-2 h-5 w-px bg-zinc-800" />
@@ -62,12 +64,12 @@ export function HeaderBar() {
                   : tool.hint
               }
               onClick={() => setActiveTool(tool.id)}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-all duration-200 ${
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-all duration-200 ease-out ${
                 active
-                  ? 'bg-emerald-500/15 text-emerald-300 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.4)]'
+                  ? 'animate-tool-pop bg-emerald-500/15 text-emerald-300 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.4),0_0_12px_rgba(16,185,129,0.15)]'
                   : blocked
                     ? 'cursor-not-allowed text-zinc-600'
-                    : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                    : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 active:scale-[0.96]'
               }`}
             >
               {tool.label}

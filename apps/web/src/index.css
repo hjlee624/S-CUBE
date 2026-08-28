@@ -1,16 +1,63 @@
 @import "tailwindcss";
 
+/*
+ * S-CUBE 모션 디자인 언어 — docs/decisions/0003-motion-design-language.md 참조.
+ * 원칙: 마이크로(120~200ms) / 전환(250~450ms) / 리빌(500~900ms) / 장식 루프(2~14s linear).
+ * 이징 2단 체계: 진입 expo-out, 팝·스프링 back-out, 퇴장 in-expo.
+ */
 @theme {
   --font-sans: "Pretendard Variable", Pretendard, "Segoe UI", "Malgun Gothic", sans-serif;
   --font-mono: "JetBrains Mono", Consolas, "Courier New", monospace;
 
-  /* 모션 토큰 — 스프링감 있는 ease-out-expo 계열 */
+  /* ── 이징 토큰 (레퍼런스: Krepling expo-out, RedSun back-out, Cartesia in-expo) ── */
+  --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-back: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --ease-in-expo: cubic-bezier(0.7, 0, 0.84, 0);
+
+  /* ── 색 토큰 — zinc 서페이스 4단 + emerald 단일 액센트 ── */
+  --color-surface-0: #09090b; /* 캔버스·최심부 (zinc-950) */
+  --color-surface-1: #101012; /* 패널 */
+  --color-surface-2: #18181b; /* 카드 (zinc-900) */
+  --color-surface-3: #27272a; /* 호버·보더 (zinc-800) */
+  --color-accent: #10b981; /* emerald-500 — 유일 액션 색 */
+  --color-accent-soft: #34d399; /* emerald-400 */
+
+  /* ── 글로우/그라디언트 토큰 (RedSun '발광 유리' 3종 세트) ── */
+  --glow-border: rgba(16, 185, 129, 0.16);
+  --glow-inset: inset 0 -9px 24px rgba(16, 185, 129, 0.1);
+  --glow-halo: 0 0 0 4px rgba(52, 211, 153, 0.22);
+
+  /* ── 진입·전환 애니메이션 ── */
   --animate-fade-in: fade-in 0.25s ease-out both;
-  --animate-fade-in-up: fade-in-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
-  --animate-toast-in: toast-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-  --animate-banner-in: banner-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
-  --animate-modal-in: modal-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade-in-up: fade-in-up 0.4s var(--ease-out-expo) both;
+  --animate-toast-in: toast-in 0.45s var(--ease-back) both;
+  --animate-banner-in: banner-in 0.5s var(--ease-back) both;
+  --animate-modal-in: modal-in 0.32s var(--ease-back) both;
   --animate-indeterminate: indeterminate 1.1s ease-in-out infinite;
+
+  /* 패널 안무 — 좌/우/상/하 방향별 진입 (앱 셸 스태거) */
+  --animate-panel-left: panel-left 0.55s var(--ease-out-expo) both;
+  --animate-panel-right: panel-right 0.55s var(--ease-out-expo) both;
+  --animate-panel-top: panel-top 0.45s var(--ease-out-expo) both;
+  --animate-panel-bottom: panel-bottom 0.45s var(--ease-out-expo) both;
+
+  /* 엔트리 히어로 — 문자 스태거 리빌 (Krepling 3D 리빌의 절제판) */
+  --animate-char-rise: char-rise 0.7s var(--ease-out-expo) both;
+  --animate-hero-exit: hero-exit 0.4s var(--ease-in-expo) both;
+
+  /* 상태 표현 (Aside thinking-gradient / Cartesia slide-in) */
+  --animate-thinking: thinking 2s linear infinite;
+  --animate-row-in: row-in 0.35s var(--ease-out-quint) both;
+  --animate-label-swap: label-swap 0.3s var(--ease-out-quint) both;
+  --animate-tick: tick 0.3s var(--ease-out-quint) both;
+  --animate-eye-pop: eye-pop 0.3s var(--ease-back) both;
+  --animate-tool-pop: tool-pop 0.35s var(--ease-back) both;
+  --animate-success-pulse: success-pulse 0.9s var(--ease-out-expo) both;
+
+  /* 장식 루프 — 배경/가장자리 전용 (Daylight 규칙: 콘텐츠 위 금지) */
+  --animate-grad-drift: grad-drift 12s linear infinite;
+  --animate-shine: shine 3.6s var(--ease-out-quint) infinite;
 
   @keyframes fade-in {
     from {
@@ -33,7 +80,7 @@
   @keyframes toast-in {
     from {
       opacity: 0;
-      transform: translateY(12px) scale(0.96);
+      transform: translateY(14px) scale(0.94);
     }
     to {
       opacity: 1;
@@ -43,7 +90,7 @@
   @keyframes banner-in {
     from {
       opacity: 0;
-      transform: translateY(-16px);
+      transform: translateY(-18px) scale(0.97);
     }
     to {
       opacity: 1;
@@ -53,7 +100,7 @@
   @keyframes modal-in {
     from {
       opacity: 0;
-      transform: translateY(8px) scale(0.97);
+      transform: translateY(10px) scale(0.95);
     }
     to {
       opacity: 1;
@@ -68,6 +115,156 @@
       transform: translateX(320%);
     }
   }
+  @keyframes panel-left {
+    from {
+      opacity: 0;
+      transform: translateX(-14px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes panel-right {
+    from {
+      opacity: 0;
+      transform: translateX(14px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes panel-top {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes panel-bottom {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes char-rise {
+    from {
+      opacity: 0;
+      transform: translateY(110%) skewY(-4deg);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes hero-exit {
+    from {
+      opacity: 1;
+      transform: none;
+      filter: blur(0);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.96);
+      filter: blur(6px);
+    }
+  }
+  @keyframes thinking {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: -100% 0;
+    }
+  }
+  @keyframes row-in {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes label-swap {
+    from {
+      opacity: 0;
+      transform: translateY(7px);
+      filter: blur(3px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+      filter: blur(0);
+    }
+  }
+  @keyframes tick {
+    from {
+      opacity: 0;
+      transform: translateY(5px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes eye-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes tool-pop {
+    0% {
+      transform: scale(0.94);
+    }
+    100% {
+      transform: none;
+    }
+  }
+  @keyframes success-pulse {
+    0% {
+      opacity: 0;
+    }
+    18% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  @keyframes grad-drift {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes shine {
+    0% {
+      transform: translateX(-160%) skewX(-18deg);
+    }
+    55% {
+      transform: translateX(220%) skewX(-18deg);
+    }
+    100% {
+      transform: translateX(220%) skewX(-18deg);
+    }
+  }
 }
 
 html,
@@ -79,4 +276,56 @@ body,
 /* 캔버스 위 커서·스크롤 관성 억제 */
 body {
   overscroll-behavior: none;
+}
+
+/* ── 도트 그리드 배경 — 엔트리 화면·캔버스 빈 상태 (customer.io 패턴) ── */
+.dot-grid {
+  background-image: radial-gradient(rgba(161, 161, 170, 0.16) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* ── 발광 유리 카드 — emerald 3종 세트 (RedSun 번역) ── */
+.glow-card {
+  border: 1px solid var(--glow-border);
+  box-shadow:
+    var(--glow-inset),
+    0 12px 40px rgba(0, 0, 0, 0.45);
+  background-image: radial-gradient(
+    ellipse 80% 45% at 50% 0%,
+    rgba(16, 185, 129, 0.07),
+    transparent 60%
+  );
+}
+
+/* ── 레이어 스와치 글로우 — 행 hover 시 레이어 색으로 발광 ── */
+.layer-swatch {
+  transition: box-shadow 0.2s var(--ease-out-quint);
+}
+.group:hover .layer-swatch {
+  box-shadow: 0 0 9px 1px color-mix(in srgb, var(--swatch-color, transparent) 65%, transparent);
+}
+
+/* ── thinking 시머 — 계산·파싱 진행 중 (Aside 번역) ── */
+.thinking-bar {
+  background-image: linear-gradient(
+    90deg,
+    rgba(39, 39, 42, 0.6),
+    rgba(16, 185, 129, 0.28),
+    rgba(39, 39, 42, 0.6)
+  );
+  background-size: 230% 100%;
+}
+
+/* ── 접근성 — 모션 최소화 선호 시 전 애니메이션·트랜지션 즉시 완료 ── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
 }

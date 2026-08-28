@@ -10,9 +10,36 @@ import { overlay } from '../canvas/overlay-state.ts';
 import { CanvasRenderer } from '../canvas/renderer.ts';
 import { findSnap } from '../canvas/snap.ts';
 import { panByScreenDelta, screenToWorld, zoomAtScreenPoint } from '../canvas/transform.ts';
-import { openDrawingFile, pickDxfFile } from '../lib/open-file.ts';
+import { openDrawingFile } from '../lib/open-file.ts';
 import { useAppStore } from '../store/index.ts';
 import { PARSE_STAGE_LABELS } from '../workers/messages.ts';
+import { EmptyHero } from './EmptyHero.tsx';
+
+/**
+ * 캘리브레이션 확정 순간의 화면 가장자리 emerald 펄스 —
+ * 렌더 루프(renderer.ts)를 건드리지 않는 DOM/CSS 오버레이 피드백.
+ */
+function CalibrationPulse() {
+  const calibratedAt = useAppStore((s) => s.calibration?.calibratedAt ?? null);
+  const [pulseKey, setPulseKey] = useState<string | null>(null);
+  const prevRef = useRef<string | null>(calibratedAt);
+
+  useEffect(() => {
+    if (calibratedAt !== null && prevRef.current !== calibratedAt) {
+      setPulseKey(calibratedAt);
+    }
+    prevRef.current = calibratedAt;
+  }, [calibratedAt]);
+
+  if (pulseKey === null) return null;
+  return (
+    <div
+      key={pulseKey}
+      onAnimationEnd={() => setPulseKey(null)}
+      className="pointer-events-none absolute inset-0 z-20 animate-success-pulse rounded-sm shadow-[inset_0_0_0_2px_rgba(52,211,153,0.7),inset_0_0_60px_rgba(16,185,129,0.18)]"
+    />
+  );
+}
 
 const SNAP_RADIUS_PX = 10;
 
@@ -29,7 +56,6 @@ export function CanvasStage() {
 
   const model = useAppStore((s) => s.model);
   const loading = useAppStore((s) => s.loading);
-  const loadError = useAppStore((s) => s.loadError);
   const activeTool = useAppStore((s) => s.activeTool);
 
   // 렌더러 수명주기
@@ -198,55 +224,39 @@ export function CanvasStage() {
       {isDropTarget && (
         <div className="pointer-events-none absolute inset-2 z-20 animate-fade-in rounded-xl border-2 border-dashed border-emerald-400/70 bg-emerald-400/5 backdrop-blur-[1px]">
           <div className="flex h-full items-center justify-center">
-            <p className="rounded-lg bg-zinc-900/90 px-4 py-2 font-mono text-sm text-emerald-300 shadow-lg">
+            <p className="animate-modal-in rounded-lg bg-zinc-900/90 px-4 py-2 font-mono text-sm text-emerald-300 shadow-lg shadow-emerald-500/20">
               놓아서 DXF 열기
             </p>
           </div>
         </div>
       )}
 
-      {/* 빈 상태 */}
-      {model === null && !loading.active && (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-          <div className="pointer-events-auto animate-fade-in-up rounded-2xl border border-zinc-800 bg-zinc-900/80 px-10 py-8 text-center shadow-2xl backdrop-blur">
-            <p className="font-mono text-xs uppercase tracking-[0.25em] text-emerald-500">
-              S-CUBE Viewer
-            </p>
-            <p className="mt-3 text-sm text-zinc-400">DXF 파일을 이곳에 끌어다 놓거나</p>
-            <button
-              type="button"
-              onClick={pickDxfFile}
-              className="mt-4 rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-zinc-950 shadow-lg shadow-emerald-500/20 transition-all duration-200 hover:bg-emerald-400 hover:shadow-emerald-400/30 active:scale-[0.97]"
-            >
-              도면 열기
-            </button>
-            <p className="mt-3 text-[11px] text-zinc-600">DWG는 DXF로 변환 후 사용하세요</p>
-            {loadError !== null && (
-              <p className="mt-4 max-w-xs rounded-md border border-red-900/60 bg-red-950/40 px-3 py-2 text-xs text-red-400">
-                파싱 실패: {loadError}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
+      {/* 빈 상태 — 엔트리 히어로 (로드 시 hero-exit로 퇴장) */}
+      <EmptyHero />
+
+      {/* 캘리브레이션 확정 피드백 펄스 */}
+      <CalibrationPulse />
 
       {/* 파싱 진행 오버레이 (P1-4) */}
       {loading.active && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-zinc-950/70 backdrop-blur-sm">
-          <div className="w-80 animate-fade-in-up rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl">
+        <div className="absolute inset-0 z-30 flex animate-fade-in items-center justify-center bg-zinc-950/70 backdrop-blur-sm">
+          <div className="glow-card w-80 animate-modal-in rounded-xl bg-zinc-900/95 p-5">
             <p className="truncate font-mono text-xs text-zinc-400">{loading.fileName}</p>
             <div className="mt-3 flex items-center justify-between text-sm">
-              <span className="text-zinc-200">
-                {loading.stage !== null ? PARSE_STAGE_LABELS[loading.stage] : '준비 중'}
+              {/* 단계 라벨 전환 — key 교체로 blur-in 스왑, grid 겹침으로 레이아웃 점프 방지 */}
+              <span className="inline-grid overflow-hidden text-zinc-200">
+                <span key={loading.stage ?? 'ready'} className="animate-label-swap [grid-area:1/1]">
+                  {loading.stage !== null ? PARSE_STAGE_LABELS[loading.stage] : '준비 중'}
+                </span>
               </span>
-              <span className="font-mono text-xs text-emerald-400">
+              <span className="font-mono text-xs text-emerald-400 tabular-nums">
                 {progressPct !== null ? `${progressPct}%` : '…'}
               </span>
             </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800">
+            <div className="thinking-bar mt-2 h-1.5 animate-thinking overflow-hidden rounded-full">
               {progressPct !== null ? (
                 <div
-                  className="h-full rounded-full bg-emerald-400 transition-[width] duration-200 ease-out"
+                  className="h-full rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.6)] transition-[width] duration-200 ease-out"
                   style={{ width: `${progressPct}%` }}
                 />
               ) : (

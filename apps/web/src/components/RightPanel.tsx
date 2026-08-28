@@ -13,11 +13,11 @@ export function RightPanel() {
   const setActiveTool = useAppStore((s) => s.setActiveTool);
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col gap-3 overflow-y-auto border-l border-zinc-800 bg-zinc-950 p-3">
+    <aside className="flex w-72 shrink-0 animate-panel-right flex-col gap-3 overflow-y-auto border-l border-zinc-800 bg-zinc-950 p-3 [animation-delay:140ms]">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">속성</p>
 
       {model !== null && (
-        <section className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 text-xs">
+        <section className="animate-fade-in-up rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 text-xs">
           <p className="font-semibold text-zinc-300">도면 정보</p>
           <dl className="mt-2 space-y-1 font-mono text-[11px] text-zinc-500">
             <div className="flex justify-between">
@@ -34,20 +34,26 @@ export function RightPanel() {
 
       {/* 캘리브레이션 카드 */}
       <section
-        className={`rounded-lg border p-3 text-xs transition-colors duration-300 ${
+        className={`rounded-lg border p-3 text-xs transition-all duration-300 ease-out ${
           calibration !== null
-            ? 'border-emerald-800/60 bg-emerald-950/20'
+            ? 'border-emerald-800/60 bg-emerald-950/20 shadow-[inset_0_-9px_24px_rgba(16,185,129,0.06)]'
             : 'border-zinc-800 bg-zinc-900/60'
         }`}
       >
         <div className="flex items-center justify-between">
           <p className="font-semibold text-zinc-300">캘리브레이션</p>
           {calibration !== null ? (
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+            <span
+              key="done"
+              className="animate-eye-pop rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.25)]"
+            >
               완료
             </span>
           ) : (
-            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+            <span
+              key="unset"
+              className="animate-eye-pop rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400"
+            >
               미설정
             </span>
           )}
@@ -123,30 +129,31 @@ export function RightPanel() {
               </span>
             )}
           </div>
-          <dl className="mt-2 space-y-1 font-mono text-[11px] text-zinc-500">
-            <div className="flex justify-between">
+          {/* 결과 행 스태거 슬라이드-인 — 실측이 흘러드는 인상 (Cartesia 패턴) */}
+          <dl key={dimCheck.handle} className="mt-2 space-y-1 font-mono text-[11px] text-zinc-500">
+            <div className="flex animate-row-in justify-between">
               <dt>handle</dt>
               <dd className="text-zinc-400">{dimCheck.handle}</dd>
             </div>
-            <div className="flex justify-between">
+            <div className="flex animate-row-in justify-between [animation-delay:50ms]">
               <dt>실측 (좌표)</dt>
               <dd className="text-zinc-300">{dimCheck.measuredRaw.toPrecision(8)}</dd>
             </div>
-            <div className="flex justify-between">
+            <div className="flex animate-row-in justify-between [animation-delay:100ms]">
               <dt>실측 × scale</dt>
               <dd className="text-zinc-300">{formatMeters(dimCheck.measured_m)}</dd>
             </div>
-            <div className="flex justify-between">
+            <div className="flex animate-row-in justify-between [animation-delay:150ms]">
               <dt>치수 텍스트</dt>
               <dd className="text-zinc-300">
                 {dimCheck.hasOverride ? (dimCheck.textOverride ?? '—') : '(실측값 표시)'}
               </dd>
             </div>
-            <div className="flex justify-between">
+            <div className="flex animate-row-in justify-between [animation-delay:200ms]">
               <dt>텍스트 × scale</dt>
               <dd className="text-zinc-300">{formatMeters(dimCheck.expected_m)}</dd>
             </div>
-            <div className="flex justify-between border-t border-zinc-800 pt-1">
+            <div className="flex animate-row-in justify-between border-t border-zinc-800 pt-1 [animation-delay:260ms]">
               <dt>오차</dt>
               <dd
                 className={
