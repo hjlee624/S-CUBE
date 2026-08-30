@@ -10,12 +10,14 @@ import { createDrawingSlice } from './drawing-slice.ts';
 import type { AppState } from './types.ts';
 import { createUiSlice } from './ui-slice.ts';
 import { createViewportSlice } from './viewport-slice.ts';
+import { createWorkspaceSlice } from './workspace-slice.ts';
 
 export const useAppStore = create<AppState>()((...args) => ({
   ...createDrawingSlice(...args),
   ...createViewportSlice(...args),
   ...createCalibrationSlice(...args),
   ...createUiSlice(...args),
+  ...createWorkspaceSlice(...args),
 }));
 
-export type { AppState, ToolId } from './types.ts';
+export type { AppState, DrawingTab, ToolId } from './types.ts';

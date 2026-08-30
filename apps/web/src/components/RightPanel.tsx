@@ -4,6 +4,7 @@
 import { insUnitsLabel } from '@s-cube/schema';
 import { formatErrorPct, formatMeters, formatScaleLabel } from '../lib/format.ts';
 import { useAppStore } from '../store/index.ts';
+import { PreflightChecklist } from './PreflightChecklist.tsx';
 
 export function RightPanel() {
   const model = useAppStore((s) => s.model);
@@ -114,6 +115,9 @@ export function RightPanel() {
           </div>
         )}
       </section>
+
+      {/* 산출 전 필수도면 체크리스트 (다중 도면 워크스페이스) */}
+      <PreflightChecklist />
 
       {/* 치수 대조 결과 (P1-12) */}
       {dimCheck !== null && (

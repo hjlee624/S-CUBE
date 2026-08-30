@@ -51,3 +51,12 @@ export {
 } from './quantity/formula.ts';
 export { MATERIAL_PRESETS } from './quantity/presets.ts';
 export { averageEndArea } from './quantity/volume.ts';
+// workspace/ — 도면 역할 분류 + 산출 전 필수도면 체크리스트
+export {
+  type ChecklistItem,
+  type ChecklistResult,
+  evaluateChecklist,
+  type Requirement,
+  suggestRoleFromName,
+  TAKEOFF_REQUIREMENTS,
+} from './workspace/index.ts';

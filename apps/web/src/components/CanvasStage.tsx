@@ -55,6 +55,7 @@ export function CanvasStage() {
   const [isDropTarget, setIsDropTarget] = useState(false);
 
   const model = useAppStore((s) => s.model);
+  const fitToken = useAppStore((s) => s.fitToken);
   const loading = useAppStore((s) => s.loading);
   const activeTool = useAppStore((s) => s.activeTool);
 
@@ -106,13 +107,15 @@ export function CanvasStage() {
     };
   }, []);
 
-  // 모델이 바뀌면 Zoom Extents (초기 화면맞춤)
+  // 신규 도면 로드 시에만 Zoom Extents (초기 화면맞춤).
+  // 탭 전환은 fitToken을 건드리지 않고 저장된 viewport를 복원하므로 화면맞춤하지 않는다.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fitToken 변화만 트리거 (신규 로드 신호)
   useEffect(() => {
-    if (model === null) return;
+    if (fitToken === 0 || model === null) return;
     const canvas = canvasRef.current;
     if (canvas === null) return;
     zoomToExtents({ width: canvas.clientWidth, height: canvas.clientHeight });
-  }, [model]);
+  }, [fitToken]);
 
   const toCanvasPos = (e: React.PointerEvent<HTMLCanvasElement>): Vec2 => {
     const rect = e.currentTarget.getBoundingClientRect();

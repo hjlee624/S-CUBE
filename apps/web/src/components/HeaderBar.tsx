@@ -20,7 +20,6 @@ const TOOLS: readonly ToolDef[] = [
 ];
 
 export function HeaderBar() {
-  const fileName = useAppStore((s) => s.fileName);
   const model = useAppStore((s) => s.model);
   const activeTool = useAppStore((s) => s.activeTool);
   const calibration = useAppStore((s) => s.calibration);
@@ -42,11 +41,7 @@ export function HeaderBar() {
       >
         도면 열기
       </button>
-      {fileName !== null && (
-        <span className="max-w-48 truncate font-mono text-xs text-zinc-500" title={fileName}>
-          {fileName}
-        </span>
-      )}
+      {/* 활성 파일명 표시는 탭 스트립(DrawingTabs)이 담당 — 중복 제거 */}
 
       <div className="mx-2 h-5 w-px bg-zinc-800" />
 

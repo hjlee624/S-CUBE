@@ -5,6 +5,7 @@
 import { CalibrationBanner } from './components/CalibrationBanner.tsx';
 import { CalibrationModal } from './components/CalibrationModal.tsx';
 import { CanvasStage } from './components/CanvasStage.tsx';
+import { DrawingTabs } from './components/DrawingTabs.tsx';
 import { DwgConvertModal } from './components/DwgConvertModal.tsx';
 import { HeaderBar } from './components/HeaderBar.tsx';
 import { LayerPanel } from './components/LayerPanel.tsx';
@@ -16,6 +17,7 @@ export function App() {
   return (
     <div className="flex h-full flex-col bg-zinc-950 text-zinc-200">
       <HeaderBar />
+      <DrawingTabs />
 
       <div className="relative flex min-h-0 flex-1">
         <LayerPanel />

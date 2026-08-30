@@ -5,7 +5,6 @@
  * DWG 경로: GET /api/convert/status 분기(설치됨→변환 / 미설치→안내 모달 /
  * 서버 미기동→토스트) 후, 변환된 DXF 텍스트를 기존 파싱 파이프라인에 그대로 투입.
  */
-import { setSceneModel } from '../canvas/scene.ts';
 import { useAppStore } from '../store/index.ts';
 import type { ParseRequest, ParseResponse } from '../workers/messages.ts';
 import {
@@ -15,6 +14,7 @@ import {
   fetchDwgRoute,
 } from './convert-api.ts';
 import { pushRecentFile } from './recent-files.ts';
+import { applyLoadedModel } from './switch-drawing.ts';
 
 let activeWorker: Worker | null = null;
 
@@ -117,8 +117,9 @@ function parseDxfFile(file: File): void {
         s.setLoadProgress(msg.stage, msg.progress);
         break;
       case 'done': {
-        setSceneModel(msg.model);
-        s.finishLoading(msg.model, name);
+        // 로드 후처리 단일 오케스트레이터 — finishLoading(스냅샷 병합·재열기 판별·flat 복원)
+        // 이후 확정된 활성 model로 setSceneModel까지 한 곳에서 수행한다(집중 항목 6).
+        applyLoadedModel(msg.model, name);
         pushRecentFile(name, msg.model.entities.length);
         const after = useAppStore.getState();
         const restoredNote = after.calibration !== null ? ' · 저장된 캘리브레이션 복원됨' : '';

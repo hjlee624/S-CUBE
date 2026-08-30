@@ -47,3 +47,13 @@ export {
   insUnitsLabel,
 } from './units.ts';
 export { SCHEMA_VERSION } from './version.ts';
+export {
+  DRAWING_ROLE_LABELS,
+  DRAWING_ROLES,
+  type DrawingRole,
+  DrawingRoleSchema,
+  TAKEOFF_KIND_LABELS,
+  TAKEOFF_KINDS,
+  type TakeoffKind,
+  TakeoffKindSchema,
+} from './workspace.ts';
