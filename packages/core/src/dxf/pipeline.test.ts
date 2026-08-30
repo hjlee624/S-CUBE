@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import type { NDimension, NLine, NPolyline } from '@s-cube/schema';
+import type { NDimension, NLine, NPolyline, NText } from '@s-cube/schema';
 import { describe, expect, it } from 'vitest';
 import { polylineLength } from '../geometry/primitives.ts';
 import { UNSUPPORTED_KEY_DEPTH_EXCEEDED } from './expand.ts';
@@ -38,6 +38,42 @@ describe('parseAndNormalizeDxf — synthetic-square100.dxf', () => {
     expect(wall?.entityCount).toBe(1);
     expect(model.bounds).toEqual({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
     expect(model.unsupportedCounts).toEqual({});
+    expect(model.sanitizedCount).toBe(0);
+  });
+});
+
+describe('parseAndNormalizeDxf — synthetic-bad-coord.dxf (좌표 위생처리)', () => {
+  const model = parseAndNormalizeDxf(readFixture('synthetic-bad-coord.dxf'));
+
+  it('bounds가 정상 사각형 규모 — 1e305 정점에 오염되지 않음', () => {
+    expect(model.bounds).not.toBeNull();
+    // WALL 사각형 (0,0)~(100,100). 손상 폴리라인의 정상 정점(5..50)은 이 안에 포함된다.
+    expect(model.bounds).toEqual({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+    // 유한하고 실측 규모(수백 mm)여야 한다
+    expect(Number.isFinite(model.bounds?.maxX)).toBe(true);
+    expect((model.bounds?.maxX ?? 0) - (model.bounds?.minX ?? 0)).toBeLessThan(1e6);
+  });
+
+  it('sanitizedCount ≥ 1 — 손상 정점 폴리라인이 집계됨 (조용히 버리지 않음)', () => {
+    expect(model.sanitizedCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it('정상 WALL 폴리라인은 온전히 남는다', () => {
+    const wall = model.entities.find(
+      (e): e is NPolyline => e.kind === 'polyline' && e.layer === 'WALL',
+    );
+    expect(wall?.vertices).toHaveLength(4);
+  });
+});
+
+describe('parseAndNormalizeDxf — synthetic-mtext-codes.dxf (MTEXT 디코딩)', () => {
+  const model = parseAndNormalizeDxf(readFixture('synthetic-mtext-codes.dxf'));
+
+  it('MTEXT 서식코드가 평문으로 디코딩되고 \\P가 줄바꿈으로', () => {
+    const text = model.entities.find((e): e is NText => e.kind === 'text');
+    expect(text).toBeDefined();
+    expect(text?.value).toBe('1. 본 도면\n2. 다음 1/2 참조');
+    expect(text?.pos).toEqual({ x: 10, y: 20 });
   });
 });
 

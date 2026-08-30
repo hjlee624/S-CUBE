@@ -65,6 +65,10 @@ export interface NHatch extends NBase {
 export interface NText extends NBase {
   kind: 'text';
   pos: Vec2;
+  /**
+   * 표시 텍스트(평문). MTEXT 서식코드는 디코딩되어 제거되며, \P(문단 나눔)는 '\n'으로
+   * 변환되므로 value에는 줄바꿈('\n')이 포함될 수 있다(다중행 텍스트).
+   */
   value: string;
   height: number;
   /** 기준선(baseline) 방향각 (라디안, CCW). 미설정 = 0 */

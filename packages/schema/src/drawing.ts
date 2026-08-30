@@ -23,6 +23,11 @@ export interface DrawingModel {
   entities: NEntity[];
   /** 미지원 엔티티 타입별 개수 — 조용히 버리지 않는다 (P1-2) */
   unsupportedCounts: Record<string, number>;
+  /**
+   * 좌표 위생처리(비유한·비현실적 초과 좌표)로 폐기·정제된 항목 수 — 조용히 버리지 않는다 (P1-2).
+   * 손상 정의점을 가진 엔티티 폐기 1건, 손상 정점 제거로 폐기된 폴리라인 1건 등 각각 1로 집계한다.
+   */
+  sanitizedCount: number;
   /** 전체 엔티티 경계 (Zoom Extents 용). 엔티티 없으면 null */
   bounds: Bounds | null;
 }

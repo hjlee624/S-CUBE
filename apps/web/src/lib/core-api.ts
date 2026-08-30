@@ -33,3 +33,14 @@ export const aciToRgb: (index: number) => string = core.aciToRgb;
 
 /** 두 점 사이 거리 */
 export const distance: (a: Vec2, b: Vec2) => number = core.distance;
+
+/**
+ * 손상 좌표 진단 — core가 손상된(비유한·초대형) 좌표를 폐기·정제한 엔티티 수.
+ *
+ * 계약: core가 DrawingModel에 진단 필드 `sanitizedCount: number`를 추가했다. 값이 없거나
+ * 비정상(NaN·음수)이면 0으로 정규화해, 표시 로직은 "> 0"만 검사하면 되게 한다.
+ */
+export function sanitizedCount(model: DrawingModel): number {
+  const v = model.sanitizedCount;
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}

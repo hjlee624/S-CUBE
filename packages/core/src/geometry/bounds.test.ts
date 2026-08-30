@@ -81,6 +81,60 @@ describe('entityBounds — 기타 엔티티', () => {
   });
 });
 
+describe('entityBounds — 손상 좌표 방어(중복 안전장치)', () => {
+  const HUGE = 1e305;
+
+  it('비유한·초과 정점은 bounds에서 제외 — 정상 정점만 반영', () => {
+    const e: NEntity = {
+      kind: 'polyline',
+      ...base,
+      vertices: [
+        { p: { x: 0, y: 0 }, bulge: 0 },
+        { p: { x: HUGE, y: Number.NaN }, bulge: 0 },
+        { p: { x: 10, y: 20 }, bulge: 0 },
+      ],
+      closed: false,
+    };
+    expectBoundsClose(entityBounds(e), { minX: 0, minY: 0, maxX: 10, maxY: 20 });
+  });
+
+  it('모든 정점 손상 → null', () => {
+    const e: NEntity = {
+      kind: 'polyline',
+      ...base,
+      vertices: [
+        { p: { x: HUGE, y: 0 }, bulge: 0 },
+        { p: { x: 0, y: Number.POSITIVE_INFINITY }, bulge: 0 },
+      ],
+      closed: false,
+    };
+    expect(entityBounds(e)).toBeNull();
+  });
+
+  it('line 끝점 손상 → 남은 점만, 둘 다 손상이면 null', () => {
+    const e: NEntity = { kind: 'line', ...base, a: { x: 3, y: 4 }, b: { x: HUGE, y: 0 } };
+    expectBoundsClose(entityBounds(e), { minX: 3, minY: 4, maxX: 3, maxY: 4 });
+    const both: NEntity = { kind: 'line', ...base, a: { x: HUGE, y: 0 }, b: { x: 0, y: HUGE } };
+    expect(entityBounds(both)).toBeNull();
+  });
+
+  it('circle 손상 중심 → null', () => {
+    const e: NEntity = { kind: 'circle', ...base, center: { x: HUGE, y: 0 }, r: 1 };
+    expect(entityBounds(e)).toBeNull();
+  });
+
+  it('text 손상 삽입점 → null', () => {
+    const e: NEntity = {
+      kind: 'text',
+      ...base,
+      pos: { x: Number.NaN, y: 0 },
+      value: 'x',
+      height: 1,
+    };
+    expect(entityBounds(e)).toBeNull();
+  });
+});
+
 describe('mergeBounds', () => {
   it('null 무시하고 병합', () => {
     const merged = mergeBounds([

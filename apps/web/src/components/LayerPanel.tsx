@@ -2,7 +2,7 @@
  * 레이어 패널 (P1-8) — 색상 스와치·엔티티 수·표시 토글 + 미지원 엔티티 집계 (P1-2 연동).
  */
 import type { CSSProperties } from 'react';
-import { aciToRgb } from '../lib/core-api.ts';
+import { aciToRgb, sanitizedCount } from '../lib/core-api.ts';
 import { formatCount } from '../lib/format.ts';
 import { useAppStore } from '../store/index.ts';
 
@@ -36,6 +36,8 @@ export function LayerPanel() {
   const setAllLayersVisible = useAppStore((s) => s.setAllLayersVisible);
 
   const unsupported = model !== null ? Object.entries(model.unsupportedCounts) : [];
+  // 손상 좌표(비유한·초대형)로 폐기·정제된 엔티티 수 — core 진단 필드 (>0일 때만 안내)
+  const sanitized = model !== null ? sanitizedCount(model) : 0;
 
   return (
     <aside className="flex w-60 shrink-0 animate-panel-left flex-col border-r border-zinc-800 bg-zinc-950 [animation-delay:80ms]">
@@ -109,6 +111,22 @@ export function LayerPanel() {
           </ul>
         )}
       </div>
+
+      {/* 손상 좌표 자동 정리 안내 — core가 비유한·초대형 좌표를 폐기·정제한 경우 (경고 톤) */}
+      {sanitized > 0 && (
+        <div className="border-t border-zinc-800/70 px-3 py-2">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold text-amber-400"
+            title="비유한·초대형 좌표를 가진 엔티티를 자동으로 정리해 화면 표시를 정상화했습니다"
+          >
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-60" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
+            </span>
+            좌표 이상 {formatCount(sanitized)}건 자동 정리됨
+          </span>
+        </div>
+      )}
 
       {/* 미지원 엔티티 — 조용히 버리지 않는다 (P1-2) */}
       {unsupported.length > 0 && (

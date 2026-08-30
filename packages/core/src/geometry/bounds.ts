@@ -7,6 +7,23 @@ import { bulgeToArc } from './primitives.ts';
 
 const TWO_PI = Math.PI * 2;
 
+/**
+ * bounds 계산에서 제외할 좌표 성분 상한(절대값). sanitize.ts의 COORD_SANE_LIMIT와 동일 의미의
+ * 방어적 중복 안전장치 — 위생처리가 선행되지 않은 경로에서도 비유한·초과 좌표가 bounds를
+ * 오염시키지 않게 한다.
+ */
+const BOUNDS_COORD_LIMIT = 1e12;
+
+/** 좌표 성분이 bounds에 반영해도 되는가 (유한 + 절대값 ≤ 상한) */
+function isBoundableCoord(n: number): boolean {
+  return Number.isFinite(n) && Math.abs(n) <= BOUNDS_COORD_LIMIT;
+}
+
+/** 점의 두 성분이 모두 반영 가능한가 */
+function isBoundablePoint(p: Vec2): boolean {
+  return isBoundableCoord(p.x) && isBoundableCoord(p.y);
+}
+
 /** [0, 2π) 범위로 정규화 */
 function normalizeAngle(angle: number): number {
   const r = angle % TWO_PI;
@@ -27,7 +44,9 @@ function pointBounds(p: Vec2): Bounds {
   return { minX: p.x, minY: p.y, maxX: p.x, maxY: p.y };
 }
 
+/** 점을 bounds에 병합. 비유한·초과 좌표는 무시한다(방어적 중복 안전장치). */
 function includePoint(b: Bounds, p: Vec2): Bounds {
+  if (!isBoundablePoint(p)) return b;
   return {
     minX: Math.min(b.minX, p.x),
     minY: Math.min(b.minY, p.y),
@@ -36,11 +55,24 @@ function includePoint(b: Bounds, p: Vec2): Bounds {
   };
 }
 
-/** 원호(항상 CCW, a0→a1)의 타이트 bbox — 양 끝점 + 스윕에 포함된 사분점 */
-export function arcBounds(center: Vec2, r: number, a0: number, a1: number): Bounds {
+/** 정점 목록에서 첫 번째 반영 가능한 점으로 seed Bounds 생성. 없으면 null. */
+function seedBounds(points: Iterable<Vec2>): Bounds | null {
+  for (const p of points) {
+    if (isBoundablePoint(p)) return pointBounds(p);
+  }
+  return null;
+}
+
+/**
+ * 원호(항상 CCW, a0→a1)의 타이트 bbox — 양 끝점 + 스윕에 포함된 사분점.
+ * center/r/각이 손상이면 null(위생처리 선행이면 도달하지 않는 방어적 경로).
+ */
+export function arcBounds(center: Vec2, r: number, a0: number, a1: number): Bounds | null {
   const p0: Vec2 = { x: center.x + r * Math.cos(a0), y: center.y + r * Math.sin(a0) };
   const p1: Vec2 = { x: center.x + r * Math.cos(a1), y: center.y + r * Math.sin(a1) };
-  let b = includePoint(pointBounds(p0), p1);
+  let b = seedBounds([p0, p1]);
+  if (b === null) return null;
+  b = includePoint(b, p1);
   const quadrants = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
   for (const q of quadrants) {
     if (angleInCcwSweep(q, a0, a1)) {
@@ -50,12 +82,11 @@ export function arcBounds(center: Vec2, r: number, a0: number, a1: number): Boun
   return b;
 }
 
-/** 폴리라인 bbox — 정점 + bulge 원호 세그먼트의 타이트 bbox */
+/** 폴리라인 bbox — 정점 + bulge 원호 세그먼트의 타이트 bbox. 유효 정점 없으면 null */
 function polylineBounds(vertices: PVertex[], closed: boolean): Bounds | null {
   const n = vertices.length;
-  const first = vertices[0];
-  if (first === undefined) return null;
-  let b = pointBounds(first.p);
+  let b = seedBounds(vertices.map((v) => v.p));
+  if (b === null) return null;
   for (const v of vertices) {
     b = includePoint(b, v.p);
   }
@@ -66,11 +97,14 @@ function polylineBounds(vertices: PVertex[], closed: boolean): Bounds | null {
     if (v0 === undefined || v1 === undefined) continue;
     if (v0.bulge === 0) continue;
     if (v0.p.x === v1.p.x && v0.p.y === v1.p.y) continue;
+    // 손상 정점 위 세그먼트는 bulge 원호 계산에서 제외(위생처리 선행이면 도달 안 함)
+    if (!isBoundablePoint(v0.p) || !isBoundablePoint(v1.p)) continue;
     const arc = bulgeToArc(v0.p, v1.p, v0.bulge);
     // NArc 규약과 동일하게 CCW 방향으로 정렬해 사분점 검사
     const ab = arc.ccw
       ? arcBounds(arc.center, arc.r, arc.a0, arc.a1)
       : arcBounds(arc.center, arc.r, arc.a1, arc.a0);
+    if (ab === null) continue;
     b = includePoint(includePoint(b, { x: ab.minX, y: ab.minY }), { x: ab.maxX, y: ab.maxY });
   }
   return b;
@@ -87,27 +121,31 @@ function loopsBounds(loops: Loop[]): Bounds | null {
  */
 export function entityBounds(e: NEntity): Bounds | null {
   switch (e.kind) {
-    case 'line':
-      return includePoint(pointBounds(e.a), e.b);
+    case 'line': {
+      const seed = seedBounds([e.a, e.b]);
+      if (seed === null) return null;
+      return includePoint(includePoint(seed, e.a), e.b);
+    }
     case 'polyline':
       return polylineBounds(e.vertices, e.closed);
     case 'arc':
       return arcBounds(e.center, e.r, e.a0, e.a1);
-    case 'circle':
+    case 'circle': {
+      if (!isBoundablePoint(e.center) || !isBoundableCoord(e.r)) return null;
       return {
         minX: e.center.x - e.r,
         minY: e.center.y - e.r,
         maxX: e.center.x + e.r,
         maxY: e.center.y + e.r,
       };
+    }
     case 'hatch':
       return loopsBounds(e.loops);
     case 'text':
-      return pointBounds(e.pos);
+      return isBoundablePoint(e.pos) ? pointBounds(e.pos) : null;
     case 'dimension': {
-      const first = e.defPoints[0];
-      if (first === undefined) return null;
-      let b = pointBounds(first);
+      let b = seedBounds(e.defPoints);
+      if (b === null) return null;
       for (const p of e.defPoints) {
         b = includePoint(b, p);
       }

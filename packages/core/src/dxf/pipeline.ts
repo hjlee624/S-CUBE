@@ -11,6 +11,7 @@ import { entityBounds, mergeBounds } from '../geometry/bounds.ts';
 import { expandAndNormalize } from './expand.ts';
 import { parseDxfRaw } from './parse.ts';
 import type { RawDxf } from './raw-types.ts';
+import { sanitizeEntities } from './sanitize.ts';
 import { scanParserDroppedTypes } from './scan-unsupported.ts';
 
 function readHeaderString(raw: RawDxf, key: string): string | null {
@@ -61,13 +62,17 @@ export function parseAndNormalizeDxf(text: string): DrawingModel {
   const raw = parseDxfRaw(text);
   const unsupportedCounts: Record<string, number> = {};
   scanParserDroppedTypes(text, unsupportedCounts);
-  const entities = expandAndNormalize(raw.entities ?? [], raw.blocks ?? {}, unsupportedCounts);
+  const normalized = expandAndNormalize(raw.entities ?? [], raw.blocks ?? {}, unsupportedCounts);
+  // A. 좌표 위생처리 — 쓰레기 좌표(비유한·비현실적 초과)를 제거해 bounds 오염을 막는다.
+  // 레이어 사용 수·bounds는 위생처리 후의 정상 엔티티만 반영해야 한다.
+  const { entities, sanitizedCount } = sanitizeEntities(normalized);
   return {
     dxfVersion: readHeaderString(raw, '$ACADVER') ?? '',
     insUnits: readHeaderNumber(raw, '$INSUNITS') ?? 0,
     layers: buildLayers(raw, entities),
     entities,
     unsupportedCounts,
+    sanitizedCount,
     bounds: mergeBounds(entities.map(entityBounds)),
   };
 }

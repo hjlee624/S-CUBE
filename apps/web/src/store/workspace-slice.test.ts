@@ -25,6 +25,7 @@ function model(entityCount: number): DrawingModel {
       () => ({ kind: 'line' }) as DrawingModel['entities'][number],
     ),
     unsupportedCounts: {},
+    sanitizedCount: 0,
     bounds: { minX: 0, minY: 0, maxX: 10, maxY: 10 },
   };
 }

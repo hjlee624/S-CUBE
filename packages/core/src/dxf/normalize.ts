@@ -7,6 +7,7 @@
  */
 import type { NDimension, NEntity, NText, PVertex, Vec2 } from '@s-cube/schema';
 import { distance } from '../geometry/primitives.ts';
+import { decodeMText } from './mtext.ts';
 import type {
   RawArcEntity,
   RawCircleEntity,
@@ -109,7 +110,8 @@ function normalizeText(raw: RawTextEntity): NEntity | null {
     kind: 'text',
     ...baseFields(raw),
     pos,
-    value: raw.text ?? '',
+    // TEXT는 서식코드가 거의 없지만 \U+·\P 등이 드물게 섞이므로 동일 디코딩(멱등)한다
+    value: decodeMText(raw.text ?? ''),
     height: typeof raw.textHeight === 'number' ? raw.textHeight : 0,
   };
   if (typeof raw.rotation === 'number' && raw.rotation !== 0) {
@@ -125,7 +127,8 @@ function normalizeMtext(raw: RawMtextEntity): NEntity | null {
     kind: 'text',
     ...baseFields(raw),
     pos,
-    value: raw.text ?? '',
+    // MTEXT 서식코드(\P·\C#·\S 분수·중괄호 그룹 등)를 평문으로 디코딩. 결과에 \n 포함 가능.
+    value: decodeMText(raw.text ?? ''),
     height: typeof raw.height === 'number' ? raw.height : 0,
   };
   if (typeof raw.rotation === 'number' && raw.rotation !== 0) {

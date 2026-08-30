@@ -11,6 +11,7 @@ import { aciToRgb, bulgeToArc, entityBounds } from '../lib/core-api.ts';
 import { useAppStore } from '../store/index.ts';
 import { overlay } from './overlay-state.ts';
 import { scene } from './scene.ts';
+import { isMultiline, layoutTextLines } from './text-layout.ts';
 import type { CanvasSize, Viewport } from './transform.ts';
 import { viewportWorldBounds, worldToScreen } from './transform.ts';
 
@@ -238,11 +239,20 @@ export class CanvasRenderer {
         // 일반 텍스트: 월드 y-up 보정을 위해 scale(1,-1)로 글리프를 바로 세운다.
         // 미러 블록 텍스트(e.mirrored): 보정을 생략하면 기준선 기준 반사가 되어
         // 미러된 글리프로 표시된다 (Phase 1 근사 렌더)
-        if (e.mirrored !== true) ctx.scale(1, -1);
+        const mirrored = e.mirrored === true;
+        if (!mirrored) ctx.scale(1, -1);
         ctx.fillStyle = color;
         ctx.font = `${e.height}px "JetBrains Mono", Consolas, monospace`;
         ctx.textBaseline = 'alphabetic';
-        ctx.fillText(e.value, 0, 0);
+        if (isMultiline(e.value)) {
+          // MTEXT 디코딩으로 \n 포함 가능 — 좌상단 기준 하강 렌더.
+          // scale(1,-1) 공간에선 +y가 화면 아래, 미러(비반전) 공간에선 -y가 화면 아래.
+          const lines = layoutTextLines(e.value, e.height);
+          const dir = mirrored ? -1 : 1;
+          for (const line of lines) ctx.fillText(line.text, 0, dir * line.baselineOffset);
+        } else {
+          ctx.fillText(e.value, 0, 0);
+        }
         ctx.restore();
         break;
       }
