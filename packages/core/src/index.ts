@@ -17,7 +17,18 @@ export {
 } from './dxf/expand.ts';
 export { parseAndNormalizeDxf } from './dxf/pipeline.ts';
 // geometry/ — 렌더·측정 공용 프리미티브
+export {
+  bulgeSegmentArea,
+  hatchArea,
+  isImplicitlyClosed,
+  netAreaWithHoles,
+  pointInPolygon,
+  polygonArea,
+  polygonSignedArea,
+  signedArea,
+} from './geometry/area.ts';
 export { entityBounds, mergeBounds } from './geometry/bounds.ts';
+export { distancePointToPolyline, distancePointToSegment } from './geometry/hittest.ts';
 export {
   applyMat3,
   composeMat3,
@@ -25,6 +36,7 @@ export {
   mat3FromInsert,
 } from './geometry/mat3.ts';
 export { bulgeToArc, distance, polylineLength } from './geometry/primitives.ts';
+export { isSelfIntersecting } from './geometry/validity.ts';
 // quantity/
 export {
   applyLoss,

@@ -98,6 +98,8 @@ export const createDrawingSlice: StateCreator<AppState, [], [], DrawingSlice> = 
         pendingCalibration: null,
         dimCheck: null,
         activeTool: 'pan',
+        // 측정 선택 하이라이트는 도면 경계에서 초기화 (측정 목록 자체는 drawingId 태깅으로 보존).
+        selectedMeasurementIds: [],
       };
     });
   },

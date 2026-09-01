@@ -22,8 +22,17 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
       s.showToast('치수 대조는 캘리브레이션 완료 후 사용할 수 있습니다', 'warn');
       return;
     }
-    // 도구 전환 시 진행 중이던 캘리브레이션 점 초기화
-    set({ activeTool: tool, calibPoints: [], dimCheck: tool === 'dim-check' ? s.dimCheck : null });
+    // 측정 도구는 캘리브레이션 완료 후에만 (FR-2.3). 도구 비활성이 1차 방어, 여기가 2차 안전장치.
+    if (tool === 'measure' && s.calibration === null) {
+      s.showToast('측정은 캘리브레이션 완료 후 사용할 수 있습니다', 'warn');
+      return;
+    }
+    // 도구 전환 시 진행 중이던 캘리브레이션 점 초기화. 측정 선택은 measure 이탈 시에만 유지.
+    set({
+      activeTool: tool,
+      calibPoints: [],
+      dimCheck: tool === 'dim-check' ? s.dimCheck : null,
+    });
   },
 
   showToast: (message, tone = 'info') => {

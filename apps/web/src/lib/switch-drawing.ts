@@ -39,6 +39,7 @@ function flatFromTab(tab: DrawingTab): {
   pendingCalibration: null;
   dimCheck: null;
   activeTool: 'pan';
+  selectedMeasurementIds: [];
 } {
   return {
     activeId: tab.id,
@@ -53,6 +54,9 @@ function flatFromTab(tab: DrawingTab): {
     pendingCalibration: null,
     dimCheck: null,
     activeTool: 'pan',
+    // 측정 자체는 measurements[]에 drawingId 태깅으로 보존되어 전환 후 돌아오면 그대로 보인다.
+    // 다만 선택 하이라이트는 도면 경계에서 초기화한다(다른 도면 handle을 가리키지 않도록).
+    selectedMeasurementIds: [],
   };
 }
 
@@ -107,6 +111,9 @@ export function closeDrawing(id: string): void {
 
   const { drawings, nextActiveId } = closeDrawingAt(baseDrawings, store.activeId, id);
 
+  // 닫힌 도면의 측정은 함께 제거한다(다른 도면 측정은 보존).
+  store.clearMeasurementsForDrawing(id);
+
   if (nextActiveId === null) {
     // 마지막 탭 닫힘 → 빈 상태 복귀
     useAppStore.setState({
@@ -121,6 +128,7 @@ export function closeDrawing(id: string): void {
       pendingCalibration: null,
       dimCheck: null,
       activeTool: 'pan',
+      selectedMeasurementIds: [],
     });
     setSceneModel(null);
     return;

@@ -5,7 +5,7 @@
 
 import type { Vec2 } from '@s-cube/schema';
 import { useEffect, useRef, useState } from 'react';
-import { pickDimensionAt, zoomToExtents } from '../canvas/actions.ts';
+import { pickDimensionAt, pickMeasureAt, zoomToExtents } from '../canvas/actions.ts';
 import { overlay } from '../canvas/overlay-state.ts';
 import { CanvasRenderer } from '../canvas/renderer.ts';
 import { findSnap } from '../canvas/snap.ts';
@@ -140,6 +140,9 @@ export function CanvasStage() {
       s.addCalibPoint(snapped);
     } else if (s.activeTool === 'dim-check') {
       pickDimensionAt(world);
+    } else if (s.activeTool === 'measure') {
+      // Shift = 다중선택 추가(측정 누적). 단일 클릭이면 새 측정을 단일 선택.
+      pickMeasureAt(world, e.shiftKey);
     }
   };
 

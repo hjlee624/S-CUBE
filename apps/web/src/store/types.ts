@@ -1,13 +1,13 @@
 /**
  * 스토어 슬라이스 타입 정의 — 슬라이스 간 순환 import 방지를 위해 분리.
  */
-import type { Calibration, DrawingModel, DrawingRole, Vec2 } from '@s-cube/schema';
+import type { Calibration, DrawingModel, DrawingRole, Measurement, Vec2 } from '@s-cube/schema';
 import type { Viewport } from '../canvas/transform.ts';
 import type { DimensionCheck } from '../lib/calibration.ts';
 import type { ParseStage } from '../workers/messages.ts';
 
-/** 활성 도구 (P1-10, P1-12) */
-export type ToolId = 'pan' | 'calibrate' | 'dim-check';
+/** 활성 도구 (P1-10, P1-12, P2-6) */
+export type ToolId = 'pan' | 'calibrate' | 'dim-check' | 'measure';
 
 export interface LoadingState {
   active: boolean;
@@ -118,6 +118,36 @@ export interface WorkspaceSlice {
   setDrawingRole: (id: string, role: DrawingRole) => void;
 }
 
+/**
+ * 측정 슬라이스 (P2-10) — 측정 결과 목록 + 선택 상태.
+ *
+ * measurements[]는 모든 도면의 측정을 drawingId 태깅으로 함께 보관한다(ScubeProject 구조와
+ * 일치). 활성 도면 것만 UI에 표시하는 필터는 표시 시점에 적용한다(measurementsForDrawing).
+ * selectedIds는 다중선택 합산·하이라이트 대상. 도면 전환 시 selectedIds만 초기화한다
+ * (측정 자체는 도면별로 보존되어 전환 후 돌아오면 그대로 보인다).
+ *
+ * 순수 상태 전이(추가·삭제·라벨수정·선택토글·도면별 제거)는 measurement-slice.ts 순수 함수로
+ * 분리해 테스트한다. Measurement 조립(축척 적용·검증)은 lib/measure.ts 가 담당한다.
+ */
+export interface MeasurementSlice {
+  /** 전 도면 측정 목록 (drawingId 태깅) */
+  measurements: Measurement[];
+  /** 선택된 측정 id 집합 (다중선택 합산·하이라이트) */
+  selectedMeasurementIds: string[];
+  addMeasurement: (m: Measurement) => void;
+  removeMeasurement: (id: string) => void;
+  /** 인라인 명명 편집 */
+  updateMeasurementLabel: (id: string, label: string) => void;
+  /** 도면 닫힘 시 그 도면 측정 일괄 제거 */
+  clearMeasurementsForDrawing: (drawingId: string) => void;
+  /** 단일 선택(교체). null이면 선택 해제 */
+  selectMeasurement: (id: string | null) => void;
+  /** Shift 추가/해제 토글 */
+  toggleMeasurementSelection: (id: string) => void;
+  /** 선택 초기화 (도면 전환 시) */
+  clearMeasurementSelection: () => void;
+}
+
 export interface UiSlice {
   activeTool: ToolId;
   toast: ToastState | null;
@@ -130,4 +160,9 @@ export interface UiSlice {
   dismissDwgGuide: () => void;
 }
 
-export type AppState = DrawingSlice & ViewportSlice & CalibrationSlice & UiSlice & WorkspaceSlice;
+export type AppState = DrawingSlice &
+  ViewportSlice &
+  CalibrationSlice &
+  UiSlice &
+  WorkspaceSlice &
+  MeasurementSlice;

@@ -22,6 +22,7 @@ export type {
   PVertex,
 } from './entity.ts';
 export type { Bounds, Mat3, Vec2 } from './geometry.ts';
+export { type Measurement, MeasurementSchema } from './measurement.ts';
 export {
   CALC_TYPES,
   type CalcType,

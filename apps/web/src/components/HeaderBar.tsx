@@ -17,7 +17,11 @@ const TOOLS: readonly ToolDef[] = [
   { id: 'pan', label: '이동', hint: '드래그로 팬 · 휠로 줌' },
   { id: 'calibrate', label: '캘리브레이션', hint: '2점 클릭 → 실제 거리 입력' },
   { id: 'dim-check', label: '치수 대조', hint: 'DIMENSION 클릭 → 오차 확인' },
+  { id: 'measure', label: '측정', hint: '폐합영역 클릭 → 면적 · 선 클릭 → 연장' },
 ];
+
+/** 캘리브레이션 완료 후에만 쓰는 도구 — 미완료 시 비활성 + 힌트 (FR-2.3) */
+const NEEDS_CALIBRATION: ReadonlySet<ToolId> = new Set<ToolId>(['dim-check', 'measure']);
 
 export function HeaderBar() {
   const model = useAppStore((s) => s.model);
@@ -48,14 +52,18 @@ export function HeaderBar() {
       <nav className="flex items-center gap-1 rounded-lg bg-zinc-900 p-1">
         {TOOLS.map((tool) => {
           const active = activeTool === tool.id;
-          const blocked = model === null || (tool.id === 'dim-check' && calibration === null);
+          const needsCal = NEEDS_CALIBRATION.has(tool.id) && calibration === null;
+          const blocked = model === null || needsCal;
           return (
             <button
               key={tool.id}
               type="button"
+              disabled={blocked}
               title={
-                tool.id === 'dim-check' && calibration === null
-                  ? '캘리브레이션 완료 후 사용 가능'
+                needsCal
+                  ? tool.id === 'measure'
+                    ? '캘리브레이션 완료 후 측정 가능'
+                    : '캘리브레이션 완료 후 사용 가능'
                   : tool.hint
               }
               onClick={() => setActiveTool(tool.id)}
@@ -71,19 +79,6 @@ export function HeaderBar() {
             </button>
           );
         })}
-        {/* 측정 — Phase 2. 캘리브레이션 여부와 무관하게 아직 비활성 (P1-11 배지) */}
-        <button
-          type="button"
-          disabled
-          title={
-            calibration === null
-              ? '캘리브레이션 미완료 — 측정 도구 비활성'
-              : '측정 도구는 Phase 2에서 제공'
-          }
-          className="cursor-not-allowed rounded-md px-3 py-1 text-xs font-medium text-zinc-700"
-        >
-          측정
-        </button>
       </nav>
 
       <div className="ml-auto flex items-center gap-2">

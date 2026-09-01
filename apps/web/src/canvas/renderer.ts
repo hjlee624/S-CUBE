@@ -21,6 +21,7 @@ const ACCENT = '#34d399'; // emerald-400
 const ACCENT_DIM = 'rgba(52, 211, 153, 0.45)';
 const SNAP_COLOR = '#fbbf24'; // amber-400
 const DIM_HILITE = '#f472b6'; // pink-400
+const MEASURE_HILITE = '#34d399'; // emerald-400 — 측정 선택 하이라이트
 
 /** 레이어명 → 색상 캐시 (모델 단위) */
 let layerColorCache: { model: DrawingModel; colors: Map<string, string> } | null = null;
@@ -112,6 +113,8 @@ export class CanvasRenderer {
     const model = state.model;
     if (model !== null) {
       this.drawEntities(ctx, model, state.layerVisibility, vp, size, dpr);
+      // 선택된 측정의 원본 엔티티 하이라이트 (같은 world 변환 안에서 글로우 스트로크)
+      this.drawMeasureHighlights(ctx, model, vp, size, dpr);
     }
 
     // 오버레이는 화면 좌표계에서
@@ -192,6 +195,76 @@ export class CanvasRenderer {
       const color = entityColor(model, e);
       this.drawEntity(ctx, e, color, ppu);
     }
+  }
+
+  /**
+   * 측정 하이라이트 (P2-7·P2-11) — 선택된 측정들의 원본 엔티티를 emerald 글로우로 덧그린다.
+   *
+   * 성능경로 훼손 금지: R-tree 뷰포트 컬링 후보 안에서 handle 매칭만 추가로 그린다(컬링 유지).
+   * 선택이 없으면 handle 집합이 비어 즉시 반환한다(오버헤드 0).
+   */
+  private drawMeasureHighlights(
+    ctx: CanvasRenderingContext2D,
+    model: DrawingModel,
+    vp: Viewport,
+    size: CanvasSize,
+    dpr: number,
+  ): void {
+    const state = useAppStore.getState();
+    // 활성 도면의 선택된 측정 → sourceHandles 합집합
+    const selected = new Set(state.selectedMeasurementIds);
+    if (selected.size === 0) return;
+    const handles = new Set<string>();
+    for (const m of state.measurements) {
+      if (m.drawingId !== state.activeId || !selected.has(m.id)) continue;
+      for (const h of m.sourceHandles) handles.add(h);
+    }
+    if (handles.size === 0) return;
+
+    const ppu = vp.pxPerUnit;
+    ctx.setTransform(
+      dpr * ppu,
+      0,
+      0,
+      -dpr * ppu,
+      dpr * (size.width / 2 - vp.center.x * ppu),
+      dpr * (size.height / 2 + vp.center.y * ppu),
+    );
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 2.5 / ppu; // 2.5 CSS px
+    ctx.strokeStyle = MEASURE_HILITE;
+    ctx.shadowColor = MEASURE_HILITE;
+    ctx.shadowBlur = 8;
+    ctx.globalAlpha = 0.95;
+
+    const query = viewportWorldBounds(vp, size, 64);
+    const visibleIdx: number[] =
+      scene.index !== null && scene.model === model
+        ? scene.index.search(query).map((it) => it.i)
+        : model.entities.map((_, i) => i);
+    for (const i of scene.model === model ? scene.unboundedIndices : []) visibleIdx.push(i);
+
+    for (const i of visibleIdx) {
+      const e = model.entities[i];
+      if (e === undefined || !handles.has(e.handle)) continue;
+      // 면적 도형(폐합 폴리라인·hatch·circle)은 채움 글로우도 살짝
+      if ((e.kind === 'polyline' && e.closed) || e.kind === 'hatch' || e.kind === 'circle') {
+        ctx.save();
+        ctx.globalAlpha = 0.14;
+        ctx.fillStyle = MEASURE_HILITE;
+        ctx.beginPath();
+        if (e.kind === 'polyline') this.tracePolyline(ctx, e.vertices, true);
+        else if (e.kind === 'circle') ctx.arc(e.center.x, e.center.y, e.r, 0, Math.PI * 2);
+        else for (const loop of e.loops) this.tracePolyline(ctx, loop.vertices, true);
+        ctx.fill('evenodd');
+        ctx.restore();
+      }
+      this.drawEntity(ctx, e, MEASURE_HILITE, ppu);
+    }
+    ctx.restore();
+    ctx.shadowBlur = 0;
   }
 
   private drawEntity(ctx: CanvasRenderingContext2D, e: NEntity, color: string, ppu: number): void {

@@ -4,6 +4,7 @@
 import { insUnitsLabel } from '@s-cube/schema';
 import { formatErrorPct, formatMeters, formatScaleLabel } from '../lib/format.ts';
 import { useAppStore } from '../store/index.ts';
+import { MeasurePanel } from './MeasurePanel.tsx';
 import { PreflightChecklist } from './PreflightChecklist.tsx';
 
 export function RightPanel() {
@@ -115,6 +116,9 @@ export function RightPanel() {
           </div>
         )}
       </section>
+
+      {/* 측정 결과 목록 (P2-10·P2-11) — 활성 도면 측정만 표시 */}
+      <MeasurePanel />
 
       {/* 산출 전 필수도면 체크리스트 (다중 도면 워크스페이스) */}
       <PreflightChecklist />

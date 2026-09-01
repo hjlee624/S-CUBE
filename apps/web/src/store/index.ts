@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import { createCalibrationSlice } from './calibration-slice.ts';
 import { createDrawingSlice } from './drawing-slice.ts';
+import { createMeasurementSlice } from './measurement-slice.ts';
 import type { AppState } from './types.ts';
 import { createUiSlice } from './ui-slice.ts';
 import { createViewportSlice } from './viewport-slice.ts';
@@ -18,6 +19,7 @@ export const useAppStore = create<AppState>()((...args) => ({
   ...createCalibrationSlice(...args),
   ...createUiSlice(...args),
   ...createWorkspaceSlice(...args),
+  ...createMeasurementSlice(...args),
 }));
 
 export type { AppState, DrawingTab, ToolId } from './types.ts';

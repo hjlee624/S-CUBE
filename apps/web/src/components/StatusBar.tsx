@@ -42,6 +42,11 @@ export function StatusBar() {
       {activeTool === 'dim-check' && (
         <span className="animate-fade-in text-pink-300">치수(DIMENSION)를 클릭하세요</span>
       )}
+      {activeTool === 'measure' && (
+        <span className="animate-fade-in text-emerald-300">
+          폐합영역 클릭 → 면적 · 선/치수 클릭 → 연장 (Shift로 누적 선택)
+        </span>
+      )}
 
       {model !== null && (
         <span
