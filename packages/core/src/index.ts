@@ -63,6 +63,31 @@ export {
 } from './quantity/formula.ts';
 export { MATERIAL_PRESETS } from './quantity/presets.ts';
 export { averageEndArea } from './quantity/volume.ts';
+// station/ — 측점 파싱·정렬·불연속 처리·구간 체적 (Phase 3)
+export {
+  ANOMALY_KINDS,
+  type Anomaly,
+  type AnomalyKind,
+  type BuildSegmentsOptions,
+  type BuildSegmentsResult,
+  buildSegments,
+  type DetectAnomaliesOptions,
+  type DuplicateGroup,
+  detectAnomalies,
+  detectDuplicates,
+  isStationParseError,
+  parseStation,
+  prismoidalVolume,
+  SEGMENT_ERROR_REASONS,
+  type SectionInput,
+  type SegmentError,
+  type SegmentErrorReason,
+  type StationParseError,
+  type StationParseResult,
+  segmentVolume,
+  sortSections,
+  totalVolume,
+} from './station/index.ts';
 // workspace/ — 도면 역할 분류 + 산출 전 필수도면 체크리스트
 export {
   type ChecklistItem,

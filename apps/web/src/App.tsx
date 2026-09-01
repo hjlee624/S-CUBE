@@ -10,6 +10,7 @@ import { DwgConvertModal } from './components/DwgConvertModal.tsx';
 import { HeaderBar } from './components/HeaderBar.tsx';
 import { LayerPanel } from './components/LayerPanel.tsx';
 import { RightPanel } from './components/RightPanel.tsx';
+import { StationDock } from './components/StationDock.tsx';
 import { StatusBar } from './components/StatusBar.tsx';
 import { Toast } from './components/Toast.tsx';
 
@@ -25,6 +26,9 @@ export function App() {
         <RightPanel />
         <CalibrationBanner />
       </div>
+
+      {/* 측점·체적 하단 도크 (Phase 3-C) — 프로젝트 단위 산출, 도면 전환과 독립 */}
+      <StationDock />
 
       <StatusBar />
       <CalibrationModal />

@@ -45,3 +45,21 @@ function trimTrailingZeros(n: number): string {
 export function formatCount(n: number): string {
   return n.toLocaleString('ko-KR');
 }
+
+/** 단면적 표시 (㎡) — 4자리, 반올림은 표시 시점만 (P2-14 정책 준용) */
+export function formatArea(m2: number, digits = 4): string {
+  if (!Number.isFinite(m2)) return '—';
+  return `${m2.toFixed(digits)} ㎡`;
+}
+
+/** 체적 표시 (㎥) — 표시 반올림, 내부는 full precision */
+export function formatVolume(m3: number, digits = 3): string {
+  if (!Number.isFinite(m3)) return '—';
+  return `${m3.toFixed(digits)} ㎥`;
+}
+
+/** chainage(m) 라벨 — 소수 3자리 */
+export function formatChainage(m: number): string {
+  if (!Number.isFinite(m)) return '—';
+  return `${m.toFixed(3)} m`;
+}

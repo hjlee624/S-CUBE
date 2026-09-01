@@ -11,6 +11,8 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   activeTool: 'pan',
   toast: null,
   dwgGuide: null,
+  stationDockOpen: false,
+  stationDockTab: 'table',
 
   setActiveTool: (tool) => {
     const s = get();
@@ -47,4 +49,8 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   showDwgGuide: (file, guide) => set({ dwgGuide: { file, guide } }),
 
   dismissDwgGuide: () => set({ dwgGuide: null }),
+
+  toggleStationDock: () => set((s) => ({ stationDockOpen: !s.stationDockOpen })),
+
+  setStationDockTab: (tab) => set({ stationDockTab: tab, stationDockOpen: true }),
 });

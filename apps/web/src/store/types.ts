@@ -1,13 +1,23 @@
 /**
  * 스토어 슬라이스 타입 정의 — 슬라이스 간 순환 import 방지를 위해 분리.
  */
-import type { Calibration, DrawingModel, DrawingRole, Measurement, Vec2 } from '@s-cube/schema';
+import type {
+  Calibration,
+  DrawingModel,
+  DrawingRole,
+  Measurement,
+  StationSection,
+  Vec2,
+} from '@s-cube/schema';
 import type { Viewport } from '../canvas/transform.ts';
 import type { DimensionCheck } from '../lib/calibration.ts';
 import type { ParseStage } from '../workers/messages.ts';
 
 /** 활성 도구 (P1-10, P1-12, P2-6) */
 export type ToolId = 'pan' | 'calibrate' | 'dim-check' | 'measure';
+
+/** 하단 측점·체적 도크 탭 (Phase 3-C) */
+export type StationDockTab = 'table' | 'segments' | 'profile';
 
 export interface LoadingState {
   active: boolean;
@@ -148,16 +158,56 @@ export interface MeasurementSlice {
   clearMeasurementSelection: () => void;
 }
 
+/**
+ * 측점 슬라이스 (Phase 3-C) — 프로젝트 단위 측점·단면 상태.
+ *
+ * 측점은 도면별이 아니라 프로젝트 산출 단위이므로 도면 전환과 독립적으로 보존된다
+ * (drawingId 태깅 없음). 파생(정렬·구간·이상)은 표시 시점에 lib/station-derive.ts
+ * 순수 함수로 계산한다. 순수 상태 전이는 station-slice.ts 순수 함수로 분리해 테스트한다.
+ */
+export interface StationSlice {
+  /** 측점 간격 (m) — 프로젝트 설정, 통상 20 */
+  stationInterval_m: number;
+  /** 전 항목(itemKey)의 측점 단면 목록 */
+  sections: StationSection[];
+  /** 사용자 정의 항목 키('절토'·'성토'·'표토제거' …) */
+  itemKeys: string[];
+  /** 단면 추가 (파싱된 station 포함) */
+  addSection: (section: StationSection) => void;
+  /** 단면 제거 */
+  removeSection: (id: string) => void;
+  /** 단면적 수동 수정 — measurementId 연결 해제 */
+  updateSectionArea: (id: string, area_m2: number) => void;
+  /** 측정값을 단면에 할당 (P3-12) — area_m2·measurementId 동시 설정 */
+  assignMeasurementToSection: (id: string, measurementId: string, area_m2: number) => void;
+  /** 측점 원표기(raw) 수정 — 재파싱해 station 갱신 */
+  updateSectionRaw: (id: string, raw: string) => void;
+  /** 측점 간격 변경 — 기존 단면 chainage 를 raw 로 되파싱 */
+  setStationInterval: (interval_m: number) => void;
+  /** 항목 추가 (중복 무시) */
+  addItemKey: (key: string) => void;
+  /** 항목 이름 변경 — 키 목록과 해당 단면들을 함께 갱신 */
+  renameItemKey: (from: string, to: string) => void;
+}
+
 export interface UiSlice {
   activeTool: ToolId;
   toast: ToastState | null;
   /** null이면 모달 닫힘 */
   dwgGuide: DwgGuideState | null;
+  /** 하단 측점·체적 도크 열림 여부 (Phase 3-C) */
+  stationDockOpen: boolean;
+  /** 하단 도크 활성 탭 (Phase 3-C) */
+  stationDockTab: StationDockTab;
   setActiveTool: (tool: ToolId) => void;
   showToast: (message: string, tone?: ToastState['tone']) => void;
   dismissToast: (id: number) => void;
   showDwgGuide: (file: File, guide: string) => void;
   dismissDwgGuide: () => void;
+  /** 도크 열림 토글 */
+  toggleStationDock: () => void;
+  /** 도크 탭 전환 (열려 있지 않으면 함께 연다) */
+  setStationDockTab: (tab: StationDockTab) => void;
 }
 
 export type AppState = DrawingSlice &
@@ -165,4 +215,5 @@ export type AppState = DrawingSlice &
   CalibrationSlice &
   UiSlice &
   WorkspaceSlice &
-  MeasurementSlice;
+  MeasurementSlice &
+  StationSlice;
