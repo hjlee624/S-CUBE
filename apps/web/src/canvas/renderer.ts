@@ -2,13 +2,16 @@
  * Canvas 2D 렌더러 (P1-6, P1-7) — RAF 루프 + dirty 플래그.
  *
  * - devicePixelRatio 대응: 백버퍼 = CSS px × dpr
- * - 엔티티는 world 좌표 그대로 그리고 ctx.setTransform으로 투영 (y 반전 포함)
+ * - 엔티티 각 점을 worldToScreen으로 스크린 px 변환 후 그린다 (측량 대좌표에서
+ *   곡선 테셀레이션 정밀도 확보). setTransform은 dpr만 반영 — y 반전은 worldToScreen이 담당.
+ *   원호 y-flip 각도 규칙은 draw-space.ts 참조.
  * - R-tree 뷰포트 컬링 후보만 렌더
  * - Zustand는 getState()로만 읽는다 (ADR 0002) — React 리렌더 없음
  */
 import type { Bounds, DrawingModel, NEntity, Vec2 } from '@s-cube/schema';
-import { aciToRgb, bulgeToArc, entityBounds } from '../lib/core-api.ts';
+import { aciToRgb, entityBounds } from '../lib/core-api.ts';
 import { useAppStore } from '../store/index.ts';
+import { bulgeSegmentToScreen, textToScreen, worldArcToScreen } from './draw-space.ts';
 import { overlay } from './overlay-state.ts';
 import { scene } from './scene.ts';
 import { isMultiline, layoutTextLines } from './text-layout.ts';
@@ -45,12 +48,9 @@ function entityColor(model: DrawingModel, e: NEntity): string {
  * 치수 근사(파선+틱) 렌더를 생략해야 하는가 — 치수블록이 전개(hasPicture)되어
  * 실제 치수선·화살표·값 텍스트가 일반 line/polyline/text 엔티티로 이미 그려질 때 true.
  * 이중 그리기를 막는다. 블록 없는 치수(hasPicture 미설정)는 false → 정의점 근사 폴백.
- *
- * core가 NDimension.hasPicture?: boolean 을 병렬 추가 중이라 스키마 타입에 아직 없을 수
- * 있어 구조적 옵션 접근으로 계약을 신뢰한다(any 아님; 필드 추가 후에도 동일 동작).
  */
 export function dimensionHasPicture(e: NEntity): boolean {
-  return e.kind === 'dimension' && (e as { hasPicture?: boolean }).hasPicture === true;
+  return e.kind === 'dimension' && e.hasPicture === true;
 }
 
 export class CanvasRenderer {
@@ -125,7 +125,7 @@ export class CanvasRenderer {
     const model = state.model;
     if (model !== null) {
       this.drawEntities(ctx, model, state.layerVisibility, vp, size, dpr);
-      // 선택된 측정의 원본 엔티티 하이라이트 (같은 world 변환 안에서 글로우 스트로크)
+      // 선택된 측정의 원본 엔티티 하이라이트 (스크린 스페이스, 엔티티와 동일 좌표계 글로우)
       this.drawMeasureHighlights(ctx, model, vp, size, dpr);
     }
 
@@ -179,17 +179,10 @@ export class CanvasRenderer {
     size: CanvasSize,
     dpr: number,
   ): void {
-    const ppu = vp.pxPerUnit;
-    // world → device 변환 (y 반전)
-    ctx.setTransform(
-      dpr * ppu,
-      0,
-      0,
-      -dpr * ppu,
-      dpr * (size.width / 2 - vp.center.x * ppu),
-      dpr * (size.height / 2 + vp.center.y * ppu),
-    );
-    ctx.lineWidth = 1 / ppu; // 1 CSS px
+    // 스크린 스페이스 드로잉: 캔버스는 dpr만 반영(선명도), 각 점은 worldToScreen으로 변환해
+    // 작은 화면 px를 경로 명령에 넘긴다 → 측량 대좌표에서도 곡선 테셀레이션 정밀도 유지.
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineWidth = 1; // 1 CSS px
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
 
@@ -205,7 +198,7 @@ export class CanvasRenderer {
       if (e === undefined) continue;
       if (layerVisibility[e.layer] === false) continue;
       const color = entityColor(model, e);
-      this.drawEntity(ctx, e, color, ppu);
+      this.drawEntity(ctx, e, color, vp, size);
     }
   }
 
@@ -233,19 +226,12 @@ export class CanvasRenderer {
     }
     if (handles.size === 0) return;
 
-    const ppu = vp.pxPerUnit;
-    ctx.setTransform(
-      dpr * ppu,
-      0,
-      0,
-      -dpr * ppu,
-      dpr * (size.width / 2 - vp.center.x * ppu),
-      dpr * (size.height / 2 + vp.center.y * ppu),
-    );
+    // 스크린 스페이스: 캔버스는 dpr만 반영, 각 점은 worldToScreen으로 변환한다(대좌표 곡선 정밀도).
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.save();
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    ctx.lineWidth = 2.5 / ppu; // 2.5 CSS px
+    ctx.lineWidth = 2.5; // 2.5 CSS px
     ctx.strokeStyle = MEASURE_HILITE;
     ctx.shadowColor = MEASURE_HILITE;
     ctx.shadowBlur = 8;
@@ -267,46 +253,62 @@ export class CanvasRenderer {
         ctx.globalAlpha = 0.14;
         ctx.fillStyle = MEASURE_HILITE;
         ctx.beginPath();
-        if (e.kind === 'polyline') this.tracePolyline(ctx, e.vertices, true);
-        else if (e.kind === 'circle') ctx.arc(e.center.x, e.center.y, e.r, 0, Math.PI * 2);
-        else for (const loop of e.loops) this.tracePolyline(ctx, loop.vertices, true);
+        if (e.kind === 'polyline') this.tracePolyline(ctx, e.vertices, true, vp, size);
+        else if (e.kind === 'circle') {
+          const c = worldToScreen(e.center, vp, size);
+          ctx.arc(c.x, c.y, e.r * vp.pxPerUnit, 0, Math.PI * 2);
+        } else for (const loop of e.loops) this.tracePolyline(ctx, loop.vertices, true, vp, size);
         ctx.fill('evenodd');
         ctx.restore();
       }
-      this.drawEntity(ctx, e, MEASURE_HILITE, ppu);
+      this.drawEntity(ctx, e, MEASURE_HILITE, vp, size);
     }
     ctx.restore();
     ctx.shadowBlur = 0;
   }
 
-  private drawEntity(ctx: CanvasRenderingContext2D, e: NEntity, color: string, ppu: number): void {
+  private drawEntity(
+    ctx: CanvasRenderingContext2D,
+    e: NEntity,
+    color: string,
+    vp: Viewport,
+    size: CanvasSize,
+  ): void {
+    const ppu = vp.pxPerUnit;
     ctx.strokeStyle = color;
     switch (e.kind) {
-      case 'line':
+      case 'line': {
+        const a = worldToScreen(e.a, vp, size);
+        const b = worldToScreen(e.b, vp, size);
         ctx.beginPath();
-        ctx.moveTo(e.a.x, e.a.y);
-        ctx.lineTo(e.b.x, e.b.y);
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
         ctx.stroke();
         break;
+      }
       case 'polyline':
         ctx.beginPath();
-        this.tracePolyline(ctx, e.vertices, e.closed);
+        this.tracePolyline(ctx, e.vertices, e.closed, vp, size);
         ctx.stroke();
         break;
-      case 'arc':
+      case 'arc': {
+        // NArc는 CCW 정의. y-flip 규칙으로 스크린 각도·방향 변환.
+        const s = worldArcToScreen(e.center, e.r, e.a0, e.a1, vp, size, true);
         ctx.beginPath();
-        // NArc는 CCW 정의 → 파라미터 공간(월드)의 각도 증가 방향 = anticlockwise=false
-        ctx.arc(e.center.x, e.center.y, e.r, e.a0, e.a1, false);
+        ctx.arc(s.cx, s.cy, s.r, s.startAngle, s.endAngle, s.anticlockwise);
         ctx.stroke();
         break;
-      case 'circle':
+      }
+      case 'circle': {
+        const c = worldToScreen(e.center, vp, size);
         ctx.beginPath();
-        ctx.arc(e.center.x, e.center.y, e.r, 0, Math.PI * 2);
+        ctx.arc(c.x, c.y, e.r * ppu, 0, Math.PI * 2);
         ctx.stroke();
         break;
+      }
       case 'hatch': {
         ctx.beginPath();
-        for (const loop of e.loops) this.tracePolyline(ctx, loop.vertices, true);
+        for (const loop of e.loops) this.tracePolyline(ctx, loop.vertices, true, vp, size);
         ctx.save();
         ctx.globalAlpha = 0.12;
         ctx.fillStyle = color;
@@ -318,21 +320,23 @@ export class CanvasRenderer {
       case 'text': {
         // 화면상 4px 미만 텍스트는 컬링
         if (e.height * ppu < 4) break;
+        const t = textToScreen(e.pos, e.height, e.rotation ?? 0, vp, size);
         ctx.save();
-        ctx.translate(e.pos.x, e.pos.y);
-        if (e.rotation !== undefined && e.rotation !== 0) ctx.rotate(e.rotation);
-        // 일반 텍스트: 월드 y-up 보정을 위해 scale(1,-1)로 글리프를 바로 세운다.
-        // 미러 블록 텍스트(e.mirrored): 보정을 생략하면 기준선 기준 반사가 되어
-        // 미러된 글리프로 표시된다 (Phase 1 근사 렌더)
+        ctx.translate(t.originX, t.originY);
+        if (t.rotation !== 0) ctx.rotate(t.rotation);
+        // 스크린 좌표계는 이미 y-down이라 글리프가 바로 선다(월드 y-up 보정은 worldToScreen에
+        // 흡수됨) → 일반 텍스트는 scale(1,-1) 불필요. 미러 블록 텍스트(e.mirrored)는 기준선
+        // 기준 반사(Phase 1 근사) → 정상 대비 scale(1,-1)로 상하 반사한다.
         const mirrored = e.mirrored === true;
-        if (!mirrored) ctx.scale(1, -1);
+        if (mirrored) ctx.scale(1, -1);
         ctx.fillStyle = color;
-        ctx.font = `${e.height}px "JetBrains Mono", Consolas, monospace`;
+        ctx.font = `${t.fontPx}px "JetBrains Mono", Consolas, monospace`;
         ctx.textBaseline = 'alphabetic';
         if (isMultiline(e.value)) {
-          // MTEXT 디코딩으로 \n 포함 가능 — 좌상단 기준 하강 렌더.
-          // scale(1,-1) 공간에선 +y가 화면 아래, 미러(비반전) 공간에선 -y가 화면 아래.
-          const lines = layoutTextLines(e.value, e.height);
+          // MTEXT 디코딩으로 \n 포함 가능 — 좌상단 기준 하강 렌더. 스크린 y-down이라
+          // baselineOffset(px = height·ppu)을 그대로 +y로 더하면 화면 아래로 내려간다.
+          // 미러(scale(1,-1)) 공간에선 +y가 화면 위 → 부호 반전해 하강을 유지한다.
+          const lines = layoutTextLines(e.value, e.height * ppu);
           const dir = mirrored ? -1 : 1;
           for (const line of lines) ctx.fillText(line.text, 0, dir * line.baselineOffset);
         } else {
@@ -346,24 +350,26 @@ export class CanvasRenderer {
         // line/polyline/text 엔티티로 들어와 각자 렌더되므로 근사 그림을 그리지 않는다
         // (이중 그리기 방지). 블록 없는 치수만 정의점 근사(파선+틱)로 폴백.
         if (dimensionHasPicture(e)) break;
-        // 치수는 정의점 연결 파선 + 정의점 틱으로 근사 렌더
+        // 치수는 정의점 연결 파선 + 정의점 틱으로 근사 렌더 (스크린 좌표)
         ctx.save();
-        ctx.setLineDash([6 / ppu, 4 / ppu]);
+        ctx.setLineDash([6, 4]);
         ctx.globalAlpha = 0.75;
         ctx.beginPath();
         for (let i = 0; i < e.defPoints.length; i++) {
           const p = e.defPoints[i];
           if (p === undefined) continue;
-          if (i === 0) ctx.moveTo(p.x, p.y);
-          else ctx.lineTo(p.x, p.y);
+          const s = worldToScreen(p, vp, size);
+          if (i === 0) ctx.moveTo(s.x, s.y);
+          else ctx.lineTo(s.x, s.y);
         }
         ctx.stroke();
         ctx.setLineDash([]);
-        const tick = 3 / ppu;
+        const tick = 3;
         for (const p of e.defPoints) {
+          const s = worldToScreen(p, vp, size);
           ctx.beginPath();
-          ctx.moveTo(p.x - tick, p.y - tick);
-          ctx.lineTo(p.x + tick, p.y + tick);
+          ctx.moveTo(s.x - tick, s.y - tick);
+          ctx.lineTo(s.x + tick, s.y + tick);
           ctx.stroke();
         }
         ctx.restore();
@@ -372,26 +378,29 @@ export class CanvasRenderer {
     }
   }
 
-  /** bulge ≠ 0 세그먼트는 원호로 (P1-6) */
+  /** bulge ≠ 0 세그먼트는 원호로 (P1-6). 각 정점은 스크린 px로 변환해 경로에 넘긴다. */
   private tracePolyline(
     ctx: CanvasRenderingContext2D,
     vertices: readonly { p: Vec2; bulge: number }[],
     closed: boolean,
+    vp: Viewport,
+    size: CanvasSize,
   ): void {
     const first = vertices[0];
     if (first === undefined) return;
-    ctx.moveTo(first.p.x, first.p.y);
+    const firstS = worldToScreen(first.p, vp, size);
+    ctx.moveTo(firstS.x, firstS.y);
     const segCount = closed ? vertices.length : vertices.length - 1;
     for (let i = 0; i < segCount; i++) {
       const v = vertices[i];
       const next = vertices[(i + 1) % vertices.length];
       if (v === undefined || next === undefined) continue;
       if (v.bulge === 0) {
-        ctx.lineTo(next.p.x, next.p.y);
+        const s = worldToScreen(next.p, vp, size);
+        ctx.lineTo(s.x, s.y);
       } else {
-        const arc = bulgeToArc(v.p, next.p, v.bulge);
-        // 월드 CCW = 파라미터 각도 증가 = anticlockwise=false
-        ctx.arc(arc.center.x, arc.center.y, arc.r, arc.a0, arc.a1, !arc.ccw);
+        const s = bulgeSegmentToScreen(v.p, next.p, v.bulge, vp, size);
+        ctx.arc(s.cx, s.cy, s.r, s.startAngle, s.endAngle, s.anticlockwise);
       }
     }
     if (closed) ctx.closePath();
