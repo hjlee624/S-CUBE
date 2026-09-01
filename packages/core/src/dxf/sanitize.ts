@@ -12,8 +12,20 @@
  * - line/arc/circle/text/dimension: 정의점(또는 반지름)이 손상이면 엔티티 폐기.
  *   dimension의 measuredRaw는 좌표 정상 범위(isSaneCoord)까지 검사한다.
  * - 폐기·정제 건수를 집계해 반환한다(엔티티 1건당 최대 1로 카운트)
+ *
+ * 2차 패스(상대 좌표 이상치): 절대 임계 아래이지만 도면의 나머지 대비 극단적으로 멀리
+ * 떨어진 엔티티(예: 폴리라인 정점 하나가 ~1e11이라 bbox 중심이 도면 밖으로 튄 경우)를
+ * 도면 자체 좌표 분포 기준으로 검출해 폐기한다(outlier.ts). 절대 임계만으로는 못 잡는
+ * bounds 오염(Zoom Extents가 실제 도면을 세로선 하나로 찌그러뜨림)을 제거한다.
  */
 import type { Loop, NEntity, PVertex, Vec2 } from '@s-cube/schema';
+import { entityBounds } from '../geometry/bounds.ts';
+import {
+  type Center,
+  classifyCenterOutliers,
+  computeOutlierCriteria,
+  isSpanOutlier,
+} from './outlier.ts';
 
 /**
  * 좌표 성분의 정상 범위 상한(절대값). 실측 좌표는 mm 단위라도 최대 ~1e9 규모이므로
@@ -150,8 +162,68 @@ function sanitizeEntity(e: NEntity, onChanged: () => void): NEntity | null {
 }
 
 /**
+ * 2차 패스 — 상대 좌표 이상치 폐기.
+ *
+ * 절대-임계 위생처리 후 남은 엔티티의 bbox 분포를 기준으로 두 종류의 이상치를 폐기한다:
+ *
+ *  (1) 중심 이동(center-shift): bbox 중심이 도면 중앙값에서 cutoff를 초과해 벗어난 엔티티.
+ *      단, cutoff를 넘는 중심점이라도 서로 뭉쳐 있는 소수 클러스터(≥ minCluster)는 정상
+ *      부속(범례·북방위표·상세도·제2 도곽)으로 보고 보호한다(classifyCenterOutliers).
+ *      고립되었거나 소수만 뭉친 중심만 폐기한다.
+ *  (2) span 팽창(span-inflation): 중심은 도면 안이지만 bbox가 cutoff보다 큰 엔티티. 정점
+ *      하나가 ~1e11이라 대칭이라도 span만 1e11로 부푼 손상(중심-기반으로는 못 잡음)을 잡아
+ *      bounds 오염(Zoom Extents가 도면을 세로선 하나로 찌그러뜨림)을 막는다.
+ *
+ * bbox 계산이 불가한(중심/span 없는) 엔티티는 이상치 판정 대상에서 제외하되 그대로 유지한다.
+ *
+ * 보수성: 중심점 수가 부족하면(computeOutlierCriteria가 null) 검출을 생략한다.
+ */
+function dropRelativeOutliers(entities: readonly NEntity[]): SanitizeResult {
+  // 각 엔티티에 bbox 중심·span을 짝지어 둔다(bbox 계산 불가는 null).
+  const withMetrics = entities.map((e) => {
+    const b = entityBounds(e);
+    if (b === null)
+      return { entity: e, center: null as Center | null, span: null as number | null };
+    const center: Center = { x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 };
+    const span = Math.max(b.maxX - b.minX, b.maxY - b.minY);
+    return { entity: e, center, span };
+  });
+  const present: Center[] = [];
+  for (const { center } of withMetrics) {
+    if (center !== null) present.push(center);
+  }
+  const criteria = computeOutlierCriteria(present);
+  // 데이터 부족(중심점 < 최소치) → 상대 검출 생략, 전부 유지.
+  if (criteria === null) return { entities: [...entities], sanitizedCount: 0 };
+  // 중심-이동 이상치 분류(정상 제2 클러스터 보호). present 순서와 대응한다.
+  const centerDrop = classifyCenterOutliers(present, criteria);
+  const out: NEntity[] = [];
+  let sanitizedCount = 0;
+  let presentIdx = 0;
+  for (const { entity, center, span } of withMetrics) {
+    if (center !== null && span !== null) {
+      const dropByCenter = centerDrop[presentIdx] === true;
+      presentIdx += 1;
+      // 중심-이동(고립 이상치) 또는 span-팽창 중 하나라도 걸리면 폐기.
+      if (dropByCenter || isSpanOutlier(span, criteria)) {
+        sanitizedCount += 1;
+        continue;
+      }
+    }
+    // 중심/span을 못 구한 엔티티는 이상치 판정에서 제외하고 유지.
+    out.push(entity);
+  }
+  return { entities: out, sanitizedCount };
+}
+
+/**
  * 정규화 엔티티 목록의 좌표 위생처리 — 손상 정점 제거·손상 엔티티 폐기.
  * 최종 model.bounds가 정상 엔티티만 반영하도록 파이프라인에서 정규화 직후 호출한다.
+ *
+ * 두 패스로 구성한다:
+ *  1) 절대-임계 위생처리(비유한·비현실적 초과 좌표 제거 — sanitizeEntity)
+ *  2) 상대 좌표 이상치 폐기(1차 통과 엔티티 대비 극단적으로 먼 bbox 중심 제거 —
+ *     dropRelativeOutliers). 두 패스의 sanitizedCount는 합산한다.
  */
 export function sanitizeEntities(entities: readonly NEntity[]): SanitizeResult {
   const out: NEntity[] = [];
@@ -164,5 +236,10 @@ export function sanitizeEntities(entities: readonly NEntity[]): SanitizeResult {
     if (changed) sanitizedCount += 1;
     if (kept !== null) out.push(kept);
   }
-  return { entities: out, sanitizedCount };
+  // 2차: 절대-임계 통과 엔티티 분포 기준 상대 이상치 폐기.
+  const relative = dropRelativeOutliers(out);
+  return {
+    entities: relative.entities,
+    sanitizedCount: sanitizedCount + relative.sanitizedCount,
+  };
 }

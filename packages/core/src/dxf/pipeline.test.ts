@@ -66,6 +66,30 @@ describe('parseAndNormalizeDxf — synthetic-bad-coord.dxf (좌표 위생처리)
   });
 });
 
+describe('parseAndNormalizeDxf — synthetic-far-outlier.dxf (상대 좌표 이상치)', () => {
+  const model = parseAndNormalizeDxf(readFixture('synthetic-far-outlier.dxf'));
+
+  it('bounds가 밀집 클러스터 규모 — ~1e11 정점 폴리라인에 오염되지 않음', () => {
+    expect(model.bounds).not.toBeNull();
+    // 밀집 사각형들은 (100,100)~(107,105)에 모여 있다. 정점 하나가 1e11인 이상치
+    // 폴리라인의 bbox 중심이 도면 밖으로 튀어 절대-임계(1e12)는 통과하지만,
+    // 상대 이상치 검출로 폐기되어 bounds가 밀집 규모로 남아야 한다.
+    expect((model.bounds?.maxX ?? 0) - (model.bounds?.minX ?? 0)).toBeLessThan(1e3);
+    expect(model.bounds?.maxX).toBeLessThan(1e6); // 1e11에 오염되지 않음
+  });
+
+  it('sanitizedCount ≥ 1 — 상대 이상치가 집계됨 (조용히 버리지 않음)', () => {
+    expect(model.sanitizedCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it('이상치 폴리라인(OUT1)만 폐기되고 밀집 사각형은 모두 유지', () => {
+    expect(model.entities.some((e) => e.handle === 'OUT1')).toBe(false);
+    // 밀집 사각형 12개는 온전히 남는다
+    const squares = model.entities.filter((e): e is NPolyline => e.kind === 'polyline');
+    expect(squares).toHaveLength(12);
+  });
+});
+
 describe('parseAndNormalizeDxf — synthetic-paperspace.dxf (레이아웃 제외)', () => {
   const model = parseAndNormalizeDxf(readFixture('synthetic-paperspace.dxf'));
 
