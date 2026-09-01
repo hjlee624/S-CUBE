@@ -62,7 +62,12 @@ export function parseAndNormalizeDxf(text: string): DrawingModel {
   const raw = parseDxfRaw(text);
   const unsupportedCounts: Record<string, number> = {};
   scanParserDroppedTypes(text, unsupportedCounts);
-  const normalized = expandAndNormalize(raw.entities ?? [], raw.blocks ?? {}, unsupportedCounts);
+  // 레이아웃(페이퍼 스페이스) 제외 — 도곽·표제부가 모델 뷰에 껴드는 것을 막는다.
+  // 블록 전개 전에 최상위에서 걸러야 페이퍼 스페이스 INSERT의 하위까지 함께 제외된다.
+  const allRawEntities = raw.entities ?? [];
+  const modelEntities = allRawEntities.filter((e) => e.inPaperSpace !== true);
+  const paperSpaceExcludedCount = allRawEntities.length - modelEntities.length;
+  const normalized = expandAndNormalize(modelEntities, raw.blocks ?? {}, unsupportedCounts);
   // A. 좌표 위생처리 — 쓰레기 좌표(비유한·비현실적 초과)를 제거해 bounds 오염을 막는다.
   // 레이어 사용 수·bounds는 위생처리 후의 정상 엔티티만 반영해야 한다.
   const { entities, sanitizedCount } = sanitizeEntities(normalized);
@@ -73,6 +78,7 @@ export function parseAndNormalizeDxf(text: string): DrawingModel {
     entities,
     unsupportedCounts,
     sanitizedCount,
+    paperSpaceExcludedCount,
     bounds: mergeBounds(entities.map(entityBounds)),
   };
 }

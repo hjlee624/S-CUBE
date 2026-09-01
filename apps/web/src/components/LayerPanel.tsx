@@ -2,7 +2,7 @@
  * 레이어 패널 (P1-8) — 색상 스와치·엔티티 수·표시 토글 + 미지원 엔티티 집계 (P1-2 연동).
  */
 import type { CSSProperties } from 'react';
-import { aciToRgb, sanitizedCount } from '../lib/core-api.ts';
+import { aciToRgb, paperSpaceExcludedCount, sanitizedCount } from '../lib/core-api.ts';
 import { formatCount } from '../lib/format.ts';
 import { useAppStore } from '../store/index.ts';
 
@@ -38,6 +38,7 @@ export function LayerPanel() {
   const unsupported = model !== null ? Object.entries(model.unsupportedCounts) : [];
   // 손상 좌표(비유한·초대형)로 폐기·정제된 엔티티 수 — core 진단 필드 (>0일 때만 안내)
   const sanitized = model !== null ? sanitizedCount(model) : 0;
+  const paperExcluded = model !== null ? paperSpaceExcludedCount(model) : 0;
 
   return (
     <aside className="flex w-60 shrink-0 animate-panel-left flex-col border-r border-zinc-800 bg-zinc-950 [animation-delay:80ms]">
@@ -124,6 +125,19 @@ export function LayerPanel() {
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
             </span>
             좌표 이상 {formatCount(sanitized)}건 자동 정리됨
+          </span>
+        </div>
+      )}
+
+      {/* 레이아웃(페이퍼 스페이스) 제외 안내 — 도곽·표제부는 모델 뷰에서 걷어낸다 */}
+      {paperExcluded > 0 && (
+        <div className="border-t border-zinc-800/70 px-3 py-2">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/10 px-2.5 py-1 text-[10px] font-semibold text-sky-400"
+            title="레이아웃(페이퍼 스페이스)의 도곽·표제부를 제외하고 모델 공간 객체만 표시합니다"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+            레이아웃 {formatCount(paperExcluded)}건 제외 (모델만 표시)
           </span>
         </div>
       )}

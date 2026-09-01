@@ -28,6 +28,11 @@ export interface DrawingModel {
    * 손상 정의점을 가진 엔티티 폐기 1건, 손상 정점 제거로 폐기된 폴리라인 1건 등 각각 1로 집계한다.
    */
   sanitizedCount: number;
+  /**
+   * 레이아웃(페이퍼 스페이스)에서 제외된 최상위 엔티티 수 — 도곽·표제부 등.
+   * 모델 공간 객체만 렌더·측정 대상으로 삼는다(그룹코드 67=1 제외). 조용히 버리지 않는다.
+   */
+  paperSpaceExcludedCount: number;
   /** 전체 엔티티 경계 (Zoom Extents 용). 엔티티 없으면 null */
   bounds: Bounds | null;
 }

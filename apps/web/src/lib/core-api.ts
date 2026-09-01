@@ -87,3 +87,12 @@ export function sanitizedCount(model: DrawingModel): number {
   const v = model.sanitizedCount;
   return Number.isFinite(v) && v > 0 ? v : 0;
 }
+
+/**
+ * 레이아웃 제외 진단 — core가 페이퍼 스페이스(도곽·표제부)에서 제외한 엔티티 수.
+ * 모델 공간 객체만 렌더·측정한다. 값이 없거나 비정상이면 0으로 정규화.
+ */
+export function paperSpaceExcludedCount(model: DrawingModel): number {
+  const v = model.paperSpaceExcludedCount;
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}

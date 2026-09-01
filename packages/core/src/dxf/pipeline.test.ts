@@ -66,6 +66,25 @@ describe('parseAndNormalizeDxf — synthetic-bad-coord.dxf (좌표 위생처리)
   });
 });
 
+describe('parseAndNormalizeDxf — synthetic-paperspace.dxf (레이아웃 제외)', () => {
+  const model = parseAndNormalizeDxf(readFixture('synthetic-paperspace.dxf'));
+
+  it('페이퍼 스페이스(도곽) 엔티티는 제외되고 모델 공간만 남는다', () => {
+    // MODEL 레이어 사각형만 남고, TITLEBLOCK(67=1) LINE은 제외
+    expect(model.entities).toHaveLength(1);
+    expect(model.entities[0]?.layer).toBe('MODEL');
+    expect(model.entities.some((e) => e.layer === 'TITLEBLOCK')).toBe(false);
+  });
+
+  it('paperSpaceExcludedCount로 제외 수를 집계한다 (조용히 버리지 않음)', () => {
+    expect(model.paperSpaceExcludedCount).toBe(1);
+  });
+
+  it('bounds가 도곽(841×594)이 아니라 모델 사각형(100×100) 규모여야 한다', () => {
+    expect(model.bounds).toEqual({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+  });
+});
+
 describe('parseAndNormalizeDxf — synthetic-mtext-codes.dxf (MTEXT 디코딩)', () => {
   const model = parseAndNormalizeDxf(readFixture('synthetic-mtext-codes.dxf'));
 

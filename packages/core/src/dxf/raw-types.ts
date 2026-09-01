@@ -19,6 +19,8 @@ export interface RawEntityBase {
   layer?: string;
   colorIndex?: number;
   visible?: boolean;
+  /** 그룹코드 67=1 → 레이아웃(페이퍼 스페이스) 엔티티. dxf-parser가 세팅. 없으면 모델 공간 */
+  inPaperSpace?: boolean;
 }
 
 export interface RawVertex extends RawPoint {
