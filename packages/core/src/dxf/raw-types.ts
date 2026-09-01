@@ -74,6 +74,8 @@ export interface RawDimensionEntity extends RawEntityBase {
   actualMeasurement?: number;
   /** 그룹코드 1 — 사용자가 명시한 치수 텍스트 ('<>'는 실측값 표시) */
   text?: string;
+  /** 그룹코드 2 — 실제 치수 그림(선·화살표·텍스트)이 담긴 익명 치수블록명 (예 '*D60') */
+  block?: string;
 }
 
 export interface RawSolidEntity extends RawEntityBase {

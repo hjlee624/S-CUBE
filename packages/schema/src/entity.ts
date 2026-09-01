@@ -87,6 +87,11 @@ export interface NDimension extends NBase {
   measuredRaw: number;
   /** 치수 텍스트 override — 존재하면 UI에서 경고 배지 */
   textOverride: string | null;
+  /**
+   * 연관 치수블록을 전개해 실제 그림(선·화살표·텍스트)을 렌더한다.
+   * true면 렌더러는 defPoints 근사 틱을 생략한다.
+   */
+  hasPicture?: boolean;
 }
 
 /**

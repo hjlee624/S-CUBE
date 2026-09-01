@@ -41,6 +41,18 @@ function entityColor(model: DrawingModel, e: NEntity): string {
   return aciToRgb(ci);
 }
 
+/**
+ * 치수 근사(파선+틱) 렌더를 생략해야 하는가 — 치수블록이 전개(hasPicture)되어
+ * 실제 치수선·화살표·값 텍스트가 일반 line/polyline/text 엔티티로 이미 그려질 때 true.
+ * 이중 그리기를 막는다. 블록 없는 치수(hasPicture 미설정)는 false → 정의점 근사 폴백.
+ *
+ * core가 NDimension.hasPicture?: boolean 을 병렬 추가 중이라 스키마 타입에 아직 없을 수
+ * 있어 구조적 옵션 접근으로 계약을 신뢰한다(any 아님; 필드 추가 후에도 동일 동작).
+ */
+export function dimensionHasPicture(e: NEntity): boolean {
+  return e.kind === 'dimension' && (e as { hasPicture?: boolean }).hasPicture === true;
+}
+
 export class CanvasRenderer {
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
@@ -330,6 +342,10 @@ export class CanvasRenderer {
         break;
       }
       case 'dimension': {
+        // 치수블록이 전개된 경우(hasPicture): 실제 치수선·화살표·값 텍스트가 일반
+        // line/polyline/text 엔티티로 들어와 각자 렌더되므로 근사 그림을 그리지 않는다
+        // (이중 그리기 방지). 블록 없는 치수만 정의점 근사(파선+틱)로 폴백.
+        if (dimensionHasPicture(e)) break;
         // 치수는 정의점 연결 파선 + 정의점 틱으로 근사 렌더
         ctx.save();
         ctx.setLineDash([6 / ppu, 4 / ppu]);

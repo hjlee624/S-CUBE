@@ -46,5 +46,10 @@ Quantity_sample/
 .claude/
 .omc/
 
+# 디버그 스크린샷 (버그 비교용, 커밋 금지)
+/error.png
+/origin.png
+*.debug.png
+
 # 타입 선언 출력 (apps/web)
 dist-types/

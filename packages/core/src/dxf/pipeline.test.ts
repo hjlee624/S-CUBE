@@ -196,6 +196,48 @@ describe('parseAndNormalizeDxf — synthetic-units-mm.dxf', () => {
   });
 });
 
+describe('parseAndNormalizeDxf — synthetic-dim-block.dxf (치수블록 전개 + BYBLOCK/layer-0 상속)', () => {
+  const model = parseAndNormalizeDxf(readFixture('synthetic-dim-block.dxf'));
+  const dims = model.entities.filter((e): e is NDimension => e.kind === 'dimension');
+  const texts = model.entities.filter((e): e is NText => e.kind === 'text');
+  const lines = model.entities.filter((e): e is NLine => e.kind === 'line');
+
+  it('DIMENSION 2개 — 블록 있는 것만 hasPicture', () => {
+    expect(dims).toHaveLength(2);
+    const withBlock = dims.find((d) => d.handle === 'D1');
+    const withoutBlock = dims.find((d) => d.handle === 'D2');
+    expect(withBlock?.hasPicture).toBe(true);
+    // 블록 없는 DIMENSION은 hasPicture 미설정(false) — defPoints 근사 유지
+    expect(withoutBlock?.hasPicture).toBeUndefined();
+  });
+
+  it('치수블록 전개로 MTEXT가 text 엔티티로 나타난다(값 정확)', () => {
+    const dimText = texts.find((t) => t.value === '치수값');
+    expect(dimText).toBeDefined();
+    // 치수블록 좌표는 WCS(항등) — MTEXT 위치 (50,5) 보존
+    expect(dimText?.pos).toEqual({ x: 50, y: 5 });
+    // 전개 출처(blockPath)에 치수블록명 보존
+    expect(dimText?.origin?.blockPath).toEqual(['*D1']);
+  });
+
+  it('BYBLOCK 색·layer-0 상속 — 텍스트/선이 부모(DIM/색1)를 물려받는다', () => {
+    const dimText = texts.find((t) => t.value === '치수값');
+    // layer '0' → 부모 DIMENSION 레이어 'DIM'
+    expect(dimText?.layer).toBe('DIM');
+    // colorIndex 0(BYBLOCK) → 부모 색 1
+    expect(dimText?.colorIndex).toBe(1);
+    const dimLine = lines.find((l) => l.origin?.blockPath?.includes('*D1'));
+    expect(dimLine).toBeDefined();
+    expect(dimLine?.layer).toBe('DIM');
+    expect(dimLine?.colorIndex).toBe(1);
+  });
+
+  it('전개된 치수 그림이 실제 엔티티로 추가됨(text≥1, line≥1)', () => {
+    expect(texts.length).toBeGreaterThanOrEqual(1);
+    expect(lines.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe('parseAndNormalizeDxf — 오류·순환 참조', () => {
   it('빈 입력은 한국어 메시지로 실패', () => {
     expect(() => parseAndNormalizeDxf('')).toThrow(/DXF 파싱 실패/);
