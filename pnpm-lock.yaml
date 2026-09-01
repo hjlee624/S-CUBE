@@ -45,6 +45,9 @@ importers:
       '@s-cube/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      '@s-cube/xlsx':
+        specifier: workspace:*
+        version: link:../../packages/xlsx
       rbush:
         specifier: ^4.0.1
         version: 4.0.1

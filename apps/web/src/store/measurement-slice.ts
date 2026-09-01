@@ -56,31 +56,43 @@ export function toggleSelection(selected: string[], id: string): string[] {
   return selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id];
 }
 
-export const createMeasurementSlice: StateCreator<AppState, [], [], MeasurementSlice> = (set) => ({
+export const createMeasurementSlice: StateCreator<AppState, [], [], MeasurementSlice> = (
+  set,
+  get,
+) => ({
   measurements: [],
   selectedMeasurementIds: [],
 
-  addMeasurement: (m) =>
+  addMeasurement: (m) => {
     set((s) => ({
       measurements: addMeasurement(s.measurements, m),
       // 새로 추가된 측정을 단일 선택으로 만들어 즉시 하이라이트·미리보기
       selectedMeasurementIds: [m.id],
-    })),
+    }));
+    // P4-10: 측정 원본 변경 → 이 측정을 소스로 쓰는 하위 산출 항목 전부 재계산.
+    get().recomputeTakeoff();
+  },
 
-  removeMeasurement: (id) =>
+  removeMeasurement: (id) => {
     set((s) => ({
       measurements: removeMeasurement(s.measurements, id),
       selectedMeasurementIds: s.selectedMeasurementIds.filter((sid) => sid !== id),
-    })),
+    }));
+    get().recomputeTakeoff();
+  },
 
-  updateMeasurementLabel: (id, label) =>
-    set((s) => ({ measurements: updateLabel(s.measurements, id, label) })),
+  updateMeasurementLabel: (id, label) => {
+    set((s) => ({ measurements: updateLabel(s.measurements, id, label) }));
+    get().recomputeTakeoff();
+  },
 
-  clearMeasurementsForDrawing: (drawingId) =>
+  clearMeasurementsForDrawing: (drawingId) => {
     set((s) => ({
       measurements: clearForDrawing(s.measurements, drawingId),
       selectedMeasurementIds: [],
-    })),
+    }));
+    get().recomputeTakeoff();
+  },
 
   selectMeasurement: (id) => set({ selectedMeasurementIds: id === null ? [] : [id] }),
 

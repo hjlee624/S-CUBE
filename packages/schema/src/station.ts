@@ -33,8 +33,16 @@ export type StationSection = z.infer<typeof StationSectionSchema>;
 /**
  * 측점 구간 (03-DATA-MODEL §4) — volume_m3 = (a1+a2)/2 × length_m.
  * 전/후 불연속 구간은 length_m = 0 → 체적 0.
+ *
+ * fromId·toId 는 구간을 이루는 시·종점 단면(StationSection.id)이다. 구간 식별 규약
+ * segId = `${fromId}~${toId}` 를 core(buildSegments)·xlsx(CellMap)·web(takeoff-build)
+ * 세 계층이 공유해, 산출근거 셀 참조(segment:<segId>:volume 등)를 한 원천으로 맞춘다.
  */
 export const SegmentSchema = z.object({
+  /** 시점 단면 id (StationSection.id) — segId 계약의 앞부분 */
+  fromId: z.string().min(1),
+  /** 종점 단면 id (StationSection.id) — segId 계약의 뒷부분 */
+  toId: z.string().min(1),
   from: StationSchema,
   to: StationSchema,
   /** to.chainage - from.chainage */

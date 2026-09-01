@@ -22,6 +22,8 @@ function segment(
   itemKey = '절토',
 ): Segment {
   return {
+    fromId: `s-${fromChainage}`,
+    toId: `s-${toChainage}`,
     from: station(fromChainage),
     to: station(toChainage),
     length_m,

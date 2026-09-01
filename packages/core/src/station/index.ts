@@ -29,6 +29,7 @@ export {
   type SectionInput,
   type SegmentError,
   type SegmentErrorReason,
+  segmentId,
   segmentVolume,
   totalVolume,
 } from './segments.ts';

@@ -134,6 +134,8 @@ describe('Station/StationSection/Segment', () => {
     ).toBe(true);
     expect(
       SegmentSchema.safeParse({
+        fromId: 'ss-1',
+        toId: 'ss-2',
         from: station,
         to: { ...station, raw: 'No.8+0.000(후)', discontinuity: 'post' },
         length_m: 0,

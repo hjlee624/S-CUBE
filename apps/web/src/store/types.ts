@@ -5,12 +5,15 @@ import type {
   Calibration,
   DrawingModel,
   DrawingRole,
+  MaterialSpec,
   Measurement,
   StationSection,
   Vec2,
 } from '@s-cube/schema';
 import type { Viewport } from '../canvas/transform.ts';
 import type { DimensionCheck } from '../lib/calibration.ts';
+import type { TakeoffSource } from '../lib/takeoff-build.ts';
+import type { EditableTakeoffItem, TakeoffDraft } from '../lib/takeoff-derive.ts';
 import type { ParseStage } from '../workers/messages.ts';
 
 /** 활성 도구 (P1-10, P1-12, P2-6) */
@@ -190,6 +193,83 @@ export interface StationSlice {
   renameItemKey: (from: string, to: string) => void;
 }
 
+/**
+ * 규격 마스터 슬라이스 (Phase 4-A) — 공종·규격 마스터(MaterialSpec[]).
+ *
+ * 규격은 프로젝트 산출 단위다(ScubeProject.specs). MATERIAL_PRESETS 로 초기화하고
+ * localStorage(s-cube:specs)에 영속한다. CRUD·프리셋 로드·가져오기는 순수 함수로 분리.
+ */
+export interface SpecSlice {
+  specs: MaterialSpec[];
+  /** 추가/교체 — 같은 code 면 교체(중복 code 금지) */
+  upsertSpec: (spec: MaterialSpec) => void;
+  /** 부분 수정 (code 로 지정) */
+  updateSpec: (code: string, patch: Partial<MaterialSpec>) => void;
+  removeSpec: (code: string) => void;
+  /** 사내 표준 프리셋 병합 로드 (P4-2) */
+  loadSpecPresets: () => void;
+  /** JSON 가져오기 — code 기준 병합 (P4-5) */
+  importSpecs: (incoming: MaterialSpec[]) => void;
+  /** 전체 교체 (프로젝트 복원) */
+  replaceSpecs: (specs: MaterialSpec[]) => void;
+  /** 프리셋으로 초기화 */
+  resetSpecs: () => void;
+  /** code → MaterialSpec 조회 */
+  getSpec: (code: string) => MaterialSpec | undefined;
+}
+
+/**
+ * 산출 항목 슬라이스 (Phase 4-B) — 프로젝트 산출 항목(TakeoffItem[]).
+ *
+ * 각 항목은 편집 메타(source)를 얹은 EditableTakeoffItem 으로 보관한다. basis 조립·수량
+ * 평가는 lib/takeoff-* 순수 함수로 하고, 원본(측정·구간·규격) 변경 시 recomputeTakeoff 로
+ * 전 항목을 갱신한다(P4-10).
+ */
+export interface TakeoffSlice {
+  items: EditableTakeoffItem[];
+  /** 초안으로 항목 추가 — 조립 시점에 basis·quantity 확정 */
+  addTakeoffItem: (draft: TakeoffDraft) => void;
+  /** 항목 수정 — 소스·규격 변경 시 basis·quantity 재조립 */
+  updateTakeoffItem: (
+    id: string,
+    patch: Partial<Pick<EditableTakeoffItem, 'workType' | 'name' | 'specCode' | 'unit'>> & {
+      source?: TakeoffSource;
+      sourceRefs?: EditableTakeoffItem['sourceRefs'];
+    },
+  ) => void;
+  removeTakeoffItem: (id: string) => void;
+  moveTakeoffItem: (from: number, to: number) => void;
+  /** 재계산 (P4-10) — 원본 변경 반영 */
+  recomputeTakeoff: () => void;
+  /** 전체 교체 (프로젝트 복원) */
+  replaceTakeoffItems: (items: EditableTakeoffItem[]) => void;
+  getTakeoffItem: (id: string) => EditableTakeoffItem | undefined;
+}
+
+/**
+ * 프로젝트 메타 슬라이스 (Phase 4-D) — .scube 봉투 정보 + 산출/저장 UI 상태.
+ * 측점 간격은 station-slice 가 소유하므로 여기서는 이름·작성자·생성시각만 둔다.
+ */
+export interface ProjectSlice {
+  /** 프로젝트명 (표지·파일명) */
+  projectName: string;
+  /** 작성자 */
+  author: string;
+  /** 생성 시각 (ISO8601) — 최초 저장/조립 시 고정 */
+  createdAt: string;
+  setProjectName: (name: string) => void;
+  setAuthor: (author: string) => void;
+  /** 산출 도크 열림 (Phase 4) */
+  takeoffDockOpen: boolean;
+  /** 산출 도크 활성 탭 */
+  takeoffDockTab: TakeoffDockTab;
+  toggleTakeoffDock: () => void;
+  setTakeoffDockTab: (tab: TakeoffDockTab) => void;
+}
+
+/** 산출 도크 탭 (Phase 4) — 규격 마스터 / 산출 항목 */
+export type TakeoffDockTab = 'specs' | 'items';
+
 export interface UiSlice {
   activeTool: ToolId;
   toast: ToastState | null;
@@ -216,4 +296,7 @@ export type AppState = DrawingSlice &
   UiSlice &
   WorkspaceSlice &
   MeasurementSlice &
-  StationSlice;
+  StationSlice &
+  SpecSlice &
+  TakeoffSlice &
+  ProjectSlice;

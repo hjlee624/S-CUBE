@@ -134,6 +134,14 @@ export function segmentVolume(
   return sectionLength(a1_m2, a2_m2, length_m);
 }
 
+/**
+ * 구간 식별 키 — segId = `${fromId}~${toId}` (03-DATA-MODEL §4).
+ * core·xlsx·web 세 계층이 이 규약을 공유해 산출근거 셀 참조를 한 원천으로 맞춘다.
+ */
+export function segmentId(fromId: string, toId: string): string {
+  return `${fromId}~${toId}`;
+}
+
 /** 두 단면이 전/후 불연속 쌍(같은 chainage, pre→post)인지 */
 function isDiscontinuityPair(a: SectionInput, b: SectionInput): boolean {
   return (
@@ -212,6 +220,8 @@ export function buildSegments(
       const a2 = to.area_m2 ?? 0;
       const volume_m3 = 0;
       segments.push({
+        fromId: from.id,
+        toId: to.id,
         from: from.station,
         to: to.station,
         length_m: 0,
@@ -267,6 +277,8 @@ export function buildSegments(
     const volume_m3 = evaluate(node);
 
     segments.push({
+      fromId: from.id,
+      toId: to.id,
       from: from.station,
       to: to.station,
       length_m,

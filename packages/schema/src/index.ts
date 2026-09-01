@@ -24,6 +24,19 @@ export type {
 export type { Bounds, Mat3, Vec2 } from './geometry.ts';
 export { type Measurement, MeasurementSchema } from './measurement.ts';
 export {
+  type ChangeLogEntry,
+  ChangeLogEntrySchema,
+  type DrawingRef,
+  DrawingRefSchema,
+  migrateScubeProject,
+  parseScubeProject,
+  type ScubeProject,
+  type ScubeProjectMeta,
+  ScubeProjectMetaSchema,
+  ScubeProjectSchema,
+  serializeScubeProject,
+} from './project.ts';
+export {
   CALC_TYPES,
   type CalcType,
   CalcTypeSchema,

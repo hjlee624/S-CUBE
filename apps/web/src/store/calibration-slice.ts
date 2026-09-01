@@ -49,6 +49,8 @@ export const createCalibrationSlice: StateCreator<AppState, [], [], CalibrationS
       calibPoints: [],
       activeTool: 'pan',
     });
+    // P4-10: 재캘리브레이션으로 측정 value 가 바뀌면 하위 산출 항목도 재계산.
+    get().recomputeTakeoff();
   },
 
   clearCalibration: () => {
@@ -63,6 +65,8 @@ export const createCalibrationSlice: StateCreator<AppState, [], [], CalibrationS
       measurements: nextMeasurements,
       selectedMeasurementIds: [],
     });
+    // P4-10: 활성 도면 측정이 제거되면 그 측정을 소스로 쓰던 항목도 재계산.
+    get().recomputeTakeoff();
   },
 
   setDimCheck: (check) => set({ dimCheck: check }),

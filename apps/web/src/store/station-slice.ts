@@ -108,23 +108,38 @@ export function renameItemKey(
 // 슬라이스
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const createStationSlice: StateCreator<AppState, [], [], StationSlice> = (set) => ({
+export const createStationSlice: StateCreator<AppState, [], [], StationSlice> = (set, get) => ({
   stationInterval_m: DEFAULT_STATION_INTERVAL_M,
   sections: [],
   itemKeys: [...DEFAULT_ITEM_KEYS],
 
-  addSection: (section) => set((s) => ({ sections: addSection(s.sections, section) })),
+  // 측점·단면 변경은 전부 구간 체적 산출의 원본이므로, 변경 뒤 하위 항목을 재계산한다
+  // (P4-10 '원본 측정 수정 시 하위 전부 갱신'). recomputeTakeoff 는 set 이후 최신 sections
+  // 를 읽어 basis·quantity 를 다시 조립한다.
+  addSection: (section) => {
+    set((s) => ({ sections: addSection(s.sections, section) }));
+    get().recomputeTakeoff();
+  },
 
-  removeSection: (id) => set((s) => ({ sections: removeSection(s.sections, id) })),
+  removeSection: (id) => {
+    set((s) => ({ sections: removeSection(s.sections, id) }));
+    get().recomputeTakeoff();
+  },
 
-  updateSectionArea: (id, area_m2) =>
-    set((s) => ({ sections: updateSectionArea(s.sections, id, area_m2) })),
+  updateSectionArea: (id, area_m2) => {
+    set((s) => ({ sections: updateSectionArea(s.sections, id, area_m2) }));
+    get().recomputeTakeoff();
+  },
 
-  assignMeasurementToSection: (id, measurementId, area_m2) =>
-    set((s) => ({ sections: assignMeasurement(s.sections, id, measurementId, area_m2) })),
+  assignMeasurementToSection: (id, measurementId, area_m2) => {
+    set((s) => ({ sections: assignMeasurement(s.sections, id, measurementId, area_m2) }));
+    get().recomputeTakeoff();
+  },
 
-  updateSectionRaw: (id, raw) =>
-    set((s) => ({ sections: updateSectionRaw(s.sections, id, raw, s.stationInterval_m) })),
+  updateSectionRaw: (id, raw) => {
+    set((s) => ({ sections: updateSectionRaw(s.sections, id, raw, s.stationInterval_m) }));
+    get().recomputeTakeoff();
+  },
 
   setStationInterval: (interval_m) => {
     if (!Number.isFinite(interval_m) || interval_m <= 0) return;
@@ -139,9 +154,15 @@ export const createStationSlice: StateCreator<AppState, [], [], StationSlice> = 
         return { ...sec, station };
       }),
     }));
+    // 간격 변경은 구간 연장(chainage 차)을 바꿔 체적을 바꾸므로 재계산.
+    get().recomputeTakeoff();
   },
 
   addItemKey: (key) => set((s) => ({ itemKeys: addItemKey(s.itemKeys, key) })),
 
-  renameItemKey: (from, to) => set((s) => renameItemKey(s.itemKeys, s.sections, from, to)),
+  renameItemKey: (from, to) => {
+    set((s) => renameItemKey(s.itemKeys, s.sections, from, to));
+    // itemKey 이름이 바뀌면 segment-volume 소스(itemKey 기준)의 대상 구간이 달라지므로 재계산.
+    get().recomputeTakeoff();
+  },
 });

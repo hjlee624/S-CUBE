@@ -8,7 +8,10 @@ import { create } from 'zustand';
 import { createCalibrationSlice } from './calibration-slice.ts';
 import { createDrawingSlice } from './drawing-slice.ts';
 import { createMeasurementSlice } from './measurement-slice.ts';
+import { createProjectSlice } from './project-slice.ts';
+import { createSpecSlice } from './spec-slice.ts';
 import { createStationSlice } from './station-slice.ts';
+import { createTakeoffSlice } from './takeoff-slice.ts';
 import type { AppState } from './types.ts';
 import { createUiSlice } from './ui-slice.ts';
 import { createViewportSlice } from './viewport-slice.ts';
@@ -22,6 +25,9 @@ export const useAppStore = create<AppState>()((...args) => ({
   ...createWorkspaceSlice(...args),
   ...createMeasurementSlice(...args),
   ...createStationSlice(...args),
+  ...createSpecSlice(...args),
+  ...createTakeoffSlice(...args),
+  ...createProjectSlice(...args),
 }));
 
-export type { AppState, DrawingTab, StationDockTab, ToolId } from './types.ts';
+export type { AppState, DrawingTab, StationDockTab, TakeoffDockTab, ToolId } from './types.ts';

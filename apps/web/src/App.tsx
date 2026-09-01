@@ -12,6 +12,7 @@ import { LayerPanel } from './components/LayerPanel.tsx';
 import { RightPanel } from './components/RightPanel.tsx';
 import { StationDock } from './components/StationDock.tsx';
 import { StatusBar } from './components/StatusBar.tsx';
+import { TakeoffDock } from './components/TakeoffDock.tsx';
 import { Toast } from './components/Toast.tsx';
 
 export function App() {
@@ -29,6 +30,9 @@ export function App() {
 
       {/* 측점·체적 하단 도크 (Phase 3-C) — 프로젝트 단위 산출, 도면 전환과 독립 */}
       <StationDock />
+
+      {/* 규격 마스터·산출 항목·수량산출서 내보내기 도크 (Phase 4) */}
+      <TakeoffDock />
 
       <StatusBar />
       <CalibrationModal />

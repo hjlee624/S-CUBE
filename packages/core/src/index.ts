@@ -84,6 +84,7 @@ export {
   type SegmentErrorReason,
   type StationParseError,
   type StationParseResult,
+  segmentId,
   segmentVolume,
   sortSections,
   totalVolume,

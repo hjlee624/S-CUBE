@@ -7,7 +7,9 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./cell-map": "./src/cell-map.ts",
+    "./formula-excel": "./src/formula-excel.ts"
   },
   "scripts": {
     "build": "tsc --build"

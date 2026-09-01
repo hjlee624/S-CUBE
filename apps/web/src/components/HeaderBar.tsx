@@ -28,6 +28,8 @@ export function HeaderBar() {
   const activeTool = useAppStore((s) => s.activeTool);
   const calibration = useAppStore((s) => s.calibration);
   const setActiveTool = useAppStore((s) => s.setActiveTool);
+  const projectName = useAppStore((s) => s.projectName);
+  const setProjectName = useAppStore((s) => s.setProjectName);
 
   return (
     <header className="z-40 flex h-12 shrink-0 animate-panel-top items-center gap-3 border-b border-zinc-800 bg-zinc-950/95 px-4">
@@ -82,6 +84,14 @@ export function HeaderBar() {
       </nav>
 
       <div className="ml-auto flex items-center gap-2">
+        {/* 프로젝트명 — 표지·파일명에 쓰인다 (Phase 4) */}
+        <input
+          value={projectName}
+          onChange={(e) => setProjectName(e.target.value)}
+          placeholder="프로젝트명"
+          title="프로젝트명 (수량산출서 표지·파일명)"
+          className="w-44 rounded-md border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-emerald-700"
+        />
         <button
           type="button"
           onClick={() => zoomToExtents()}
