@@ -30,4 +30,11 @@ export const useAppStore = create<AppState>()((...args) => ({
   ...createProjectSlice(...args),
 }));
 
-export type { AppState, DrawingTab, StationDockTab, TakeoffDockTab, ToolId } from './types.ts';
+export type {
+  AppState,
+  DrawingTab,
+  StationDockTab,
+  TakeoffDockTab,
+  ToolId,
+  WorkbenchTab,
+} from './types.ts';

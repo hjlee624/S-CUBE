@@ -10,10 +10,9 @@ import { DwgConvertModal } from './components/DwgConvertModal.tsx';
 import { HeaderBar } from './components/HeaderBar.tsx';
 import { LayerPanel } from './components/LayerPanel.tsx';
 import { RightPanel } from './components/RightPanel.tsx';
-import { StationDock } from './components/StationDock.tsx';
 import { StatusBar } from './components/StatusBar.tsx';
-import { TakeoffDock } from './components/TakeoffDock.tsx';
 import { Toast } from './components/Toast.tsx';
+import { WorkbenchDock } from './components/WorkbenchDock.tsx';
 
 export function App() {
   return (
@@ -28,11 +27,11 @@ export function App() {
         <CalibrationBanner />
       </div>
 
-      {/* 측점·체적 하단 도크 (Phase 3-C) — 프로젝트 단위 산출, 도면 전환과 독립 */}
-      <StationDock />
-
-      {/* 규격 마스터·산출 항목·수량산출서 내보내기 도크 (Phase 4) */}
-      <TakeoffDock />
+      {/*
+        수량산출 작업대 — 측점·체적·프로파일·규격·항목·내보내기 통합 하단 도크.
+        '별도 창으로 분리' 시 Document PiP 창으로 떼어내고 캔버스가 세로를 되찾는다.
+      */}
+      <WorkbenchDock />
 
       <StatusBar />
       <CalibrationModal />

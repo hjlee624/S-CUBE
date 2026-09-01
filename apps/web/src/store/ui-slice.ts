@@ -13,6 +13,8 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   dwgGuide: null,
   stationDockOpen: false,
   stationDockTab: 'table',
+  workbenchOpen: false,
+  workbenchTab: 'stations',
 
   setActiveTool: (tool) => {
     const s = get();
@@ -53,4 +55,8 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   toggleStationDock: () => set((s) => ({ stationDockOpen: !s.stationDockOpen })),
 
   setStationDockTab: (tab) => set({ stationDockTab: tab, stationDockOpen: true }),
+
+  toggleWorkbench: () => set((s) => ({ workbenchOpen: !s.workbenchOpen })),
+
+  setWorkbenchTab: (tab) => set({ workbenchTab: tab, workbenchOpen: true }),
 });

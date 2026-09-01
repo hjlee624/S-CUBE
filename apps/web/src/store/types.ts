@@ -22,6 +22,12 @@ export type ToolId = 'pan' | 'calibrate' | 'dim-check' | 'measure';
 /** 하단 측점·체적 도크 탭 (Phase 3-C) */
 export type StationDockTab = 'table' | 'segments' | 'profile';
 
+/**
+ * 수량산출 작업대 통합 탭 (별도 창 분리) — 측점/체적/프로파일 + 규격·항목 + 내보내기 를
+ * 하나의 컨테이너에 모은다. 도킹 모드·분리 모드에서 동일하게 쓰인다.
+ */
+export type WorkbenchTab = 'stations' | 'segments' | 'profile' | 'specs' | 'items' | 'export';
+
 export interface LoadingState {
   active: boolean;
   stage: ParseStage | null;
@@ -279,6 +285,10 @@ export interface UiSlice {
   stationDockOpen: boolean;
   /** 하단 도크 활성 탭 (Phase 3-C) */
   stationDockTab: StationDockTab;
+  /** 수량산출 작업대(통합 도크) 열림 여부 */
+  workbenchOpen: boolean;
+  /** 수량산출 작업대 활성 탭 (도킹·분리 공용) */
+  workbenchTab: WorkbenchTab;
   setActiveTool: (tool: ToolId) => void;
   showToast: (message: string, tone?: ToastState['tone']) => void;
   dismissToast: (id: number) => void;
@@ -288,6 +298,10 @@ export interface UiSlice {
   toggleStationDock: () => void;
   /** 도크 탭 전환 (열려 있지 않으면 함께 연다) */
   setStationDockTab: (tab: StationDockTab) => void;
+  /** 작업대 열림 토글 */
+  toggleWorkbench: () => void;
+  /** 작업대 탭 전환 (열려 있지 않으면 함께 연다) */
+  setWorkbenchTab: (tab: WorkbenchTab) => void;
 }
 
 export type AppState = DrawingSlice &
