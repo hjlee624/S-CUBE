@@ -262,59 +262,6 @@ describe('parseAndNormalizeDxf — synthetic-dim-block.dxf (치수블록 전개 
   });
 });
 
-describe('parseAndNormalizeDxf — synthetic-orphan-block.dxf (고아 블록 감지)', () => {
-  const model = parseAndNormalizeDxf(readFixture('synthetic-orphan-block.dxf'));
-
-  it('정의만 되고 INSERT 없는 대형 블록(LINE 60개)이 orphanedBlockCount로 집계됨', () => {
-    // DESIGN 블록은 어떤 top-level INSERT로도 도달 불가 → 엔티티 60개가 손실 규모로 잡힌다.
-    expect(model.orphanedBlockCount).toBeGreaterThanOrEqual(60);
-  });
-
-  it('정상 사각형은 렌더 대상으로 남는다(고아 감지가 정상 엔티티를 지우지 않음)', () => {
-    // 배치된 MODEL 사각형은 entities에 존재하고 bounds는 100×100 규모.
-    expect(model.entities).toHaveLength(1);
-    const sq = model.entities[0] as NPolyline;
-    expect(sq.kind).toBe('polyline');
-    expect(sq.layer).toBe('MODEL');
-    expect(model.bounds).toEqual({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
-  });
-});
-
-describe('parseAndNormalizeDxf — synthetic-large-dim-block.dxf (대형 치수블록 오탐 방지)', () => {
-  const model = parseAndNormalizeDxf(readFixture('synthetic-large-dim-block.dxf'));
-
-  it('top-level DIMENSION이 참조하는 60-엔티티 치수블록(*D60)은 고아 아님', () => {
-    // *D60은 어떤 top-level INSERT로도 도달 불가하지만, top-level DIMENSION.block(그룹코드 2)이
-    // 참조하고 expand.ts가 실제로 전개해 렌더한다. 도달성 계산이 DIMENSION.block을 루트로
-    // seed해야 임계(50) 이상 치수 그림 블록을 고아로 오탐하지 않는다.
-    expect(model.orphanedBlockCount).toBe(0);
-  });
-
-  it('치수블록이 실제 렌더 엔티티로 전개됨(LINE 60개 이상)', () => {
-    const lines = model.entities.filter((e): e is NLine => e.kind === 'line');
-    expect(lines.length).toBeGreaterThanOrEqual(60);
-    expect(lines.every((l) => l.origin?.blockPath?.includes('*D60'))).toBe(true);
-  });
-});
-
-describe('parseAndNormalizeDxf — 고아 블록 회귀(기존 fixture는 orphanedBlockCount 0)', () => {
-  // 정상 fixture는 고아 블록이 없어야 한다(정의된 블록이 모두 배치되거나 소형).
-  for (const name of [
-    'synthetic-square100.dxf',
-    'synthetic-blocks.dxf',
-    'synthetic-paperspace.dxf',
-    'synthetic-dim-block.dxf',
-    'synthetic-large-dim-block.dxf',
-    'synthetic-units-mm.dxf',
-    'synthetic-bulge.dxf',
-  ]) {
-    it(`${name} → orphanedBlockCount 0`, () => {
-      const model = parseAndNormalizeDxf(readFixture(name));
-      expect(model.orphanedBlockCount).toBe(0);
-    });
-  }
-});
-
 describe('parseAndNormalizeDxf — 오류·순환 참조', () => {
   it('빈 입력은 한국어 메시지로 실패', () => {
     expect(() => parseAndNormalizeDxf('')).toThrow(/DXF 파싱 실패/);

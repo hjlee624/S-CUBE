@@ -15,10 +15,6 @@ export {
   UNSUPPORTED_KEY_DEPTH_EXCEEDED,
   UNSUPPORTED_KEY_MISSING_BLOCK,
 } from './dxf/expand.ts';
-export {
-  computeOrphanedBlockEntityCount,
-  MIN_ORPHAN_ENTITIES,
-} from './dxf/orphan-blocks.ts';
 export { parseAndNormalizeDxf } from './dxf/pipeline.ts';
 // geometry/ — 렌더·측정 공용 프리미티브
 export {

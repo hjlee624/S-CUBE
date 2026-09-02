@@ -9,7 +9,6 @@
 import type { DrawingModel, Layer, NEntity } from '@s-cube/schema';
 import { entityBounds, mergeBounds } from '../geometry/bounds.ts';
 import { expandAndNormalize } from './expand.ts';
-import { collectReferencedBlockNames, computeOrphanedBlockEntityCount } from './orphan-blocks.ts';
 import { parseDxfRaw } from './parse.ts';
 import type { RawDxf } from './raw-types.ts';
 import { sanitizeEntities } from './sanitize.ts';
@@ -70,11 +69,6 @@ export function parseAndNormalizeDxf(text: string): DrawingModel {
   const paperSpaceExcludedCount = allRawEntities.length - modelEntities.length;
   const blocks = raw.blocks ?? {};
   const normalized = expandAndNormalize(modelEntities, blocks, unsupportedCounts);
-  // 고아 블록 감지 — DWG 변환이 배치 INSERT를 잃어 렌더 못 하는 대형 블록의 손실 규모.
-  // 모델 공간 top-level 참조(INSERT.name·DIMENSION.block)에서 도달 불가한 블록을 센다.
-  // DIMENSION.block도 루트에 포함해야 expand.ts가 실제 전개하는 치수 그림 블록을 오탐하지 않는다.
-  const topLevelRefs = collectReferencedBlockNames(modelEntities);
-  const orphanedBlockCount = computeOrphanedBlockEntityCount(topLevelRefs, blocks);
   // A. 좌표 위생처리 — 쓰레기 좌표(비유한·비현실적 초과)를 제거해 bounds 오염을 막는다.
   // 레이어 사용 수·bounds는 위생처리 후의 정상 엔티티만 반영해야 한다.
   const { entities, sanitizedCount } = sanitizeEntities(normalized);
@@ -86,7 +80,6 @@ export function parseAndNormalizeDxf(text: string): DrawingModel {
     unsupportedCounts,
     sanitizedCount,
     paperSpaceExcludedCount,
-    orphanedBlockCount,
     bounds: mergeBounds(entities.map(entityBounds)),
   };
 }

@@ -27,7 +27,6 @@ function model(entityCount: number): DrawingModel {
     unsupportedCounts: {},
     sanitizedCount: 0,
     paperSpaceExcludedCount: 0,
-    orphanedBlockCount: 0,
     bounds: { minX: 0, minY: 0, maxX: 10, maxY: 10 },
   };
 }

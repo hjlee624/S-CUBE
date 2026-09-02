@@ -14,8 +14,10 @@
  * - 도면의 견고 산포(robustExtent, MAD)를 실제 규모로 잡고, 그 수백 배(K) 또는
  *   작은-도면 방어 하한(floor) 중 큰 값을 cutoff로 삼는다.
  * - floor는 고정 절대값이 아니라 **중심점 전체 범위(p5~p95 span)에 비례**해 도면 크기에
- *   따라 커진다. 이렇게 하지 않으면 아주 작은(compact) 도면에서 고정 1e6 창이 도면 크기와
- *   무관해져, 도면 밖 몇 배 거리의 정상 부속(범례·북방위표·상세도)까지 오폐기한다.
+ *   따라 커진다. 이렇게 하지 않으면(고정 큰 절대창, 예: 1e6) 실제 콘텐츠가 폭 ~1e3인 도면에서
+ *   floor가 cutoff를 지배해 도면의 수백 배 거리(<1e6)의 쓰레기 좌표까지 이상치로 못 잡아
+ *   bounds를 오염시킨다. 절대 하한(OUTLIER_ABSOLUTE_FLOOR)은 도면 크기를 신뢰 못 하는
+ *   퇴화적 초소형 케이스에서만 지배하는 안전 최소값으로 낮게 잡는다.
  * - 정상적으로 도면에서 몇 배 떨어진 콘텐츠(북방위표·범례 등)는 절대 걸리지 않는다.
  * - cutoff를 넘는 중심점이라도 **서로 뭉쳐 있는 소수 클러스터(≥ MIN_ENTITIES_FOR_RELATIVE)**
  *   면 정상 부속(제2 도곽·범례 블록)으로 보고 폐기하지 않는다. 고립된(뭉치지 않은) 점만
@@ -36,15 +38,24 @@ export const MIN_ENTITIES_FOR_RELATIVE = 8;
 export const OUTLIER_K = 100;
 
 /**
- * cutoff 하한(작은 도면 방어)의 절대 최소값. floor는 이 값과 도면 전체 범위 비례분 중 큰 값.
- * 실측 mm 좌표 규모(~1e5~1e6)를 고려해 이 절대 최소 안의 콘텐츠는 절대 이상치로 보지 않는다.
+ * cutoff 하한(**퇴화적 초소형 도면 방어**)의 절대 최소값. floor는 이 값과 도면 전체 범위
+ * 비례분 중 큰 값이고, 실제 cutoff는 다시 K × robustExtent와의 큰 값이다. 따라서 이 상수는
+ * "도면 규모를 신뢰할 수 없을 만큼 초소형·퇴화적일 때"만 지배하는 안전 하한일 뿐이다.
+ *
+ * 낮게 잡는 이유(핵심): 이 값이 크면(예: 1e6) 실제 콘텐츠가 폭 ~1e3 규모인 도면에서 floor가
+ * cutoff를 통째로 지배(1e6)해, **도면의 780배 거리**까지 이상치를 허용한다. 그 결과 좌표
+ * 부호가 뒤집힌 3e5~7e5 규모 쓰레기 폴리라인(<1e6)이 통과해 bounds를 4e5×7e5로 오염시키고
+ * Zoom Extents가 실제 도면을 화면의 0.3%로 찌그러뜨린다(실도면 여수로 굴착계획 평면도 사례).
+ * floor를 실측 좌표 mm 규모(~1e5~1e6)에 맞출 필요는 없다 — 그 규모의 도면이라면 K×robustExtent가
+ * 이미 지배하기 때문이다. floor는 도면 크기 정보가 없는 퇴화 케이스의 최소 안전창이면 충분하다.
  */
-export const OUTLIER_ABSOLUTE_FLOOR = 1e6;
+export const OUTLIER_ABSOLUTE_FLOOR = 1e4;
 
 /**
  * floor를 도면 크기에 비례시키는 계수. floor = max(ABSOLUTE_FLOOR, FRACTION × 전체범위span).
  * 전체범위span은 중심점 x·y의 p5~p95 폭 중 큰 값(극단값 트림). 큰 계수라 도면 크기의 여러 배
- * 거리(정상 부속)를 넉넉히 감싸, compact 도면에서도 고정 1e6 창에 정상 부속이 걸리지 않는다.
+ * 거리(정상 부속)를 넉넉히 감싸, compact 도면에서도 정상 부속이 걸리지 않는다. 정상 규모 도면은
+ * 이 비례분이 ABSOLUTE_FLOOR를 넘어 cutoff가 도면 크기에 따라 커진다(고정창 아님).
  */
 export const FLOOR_RANGE_FRACTION = 10;
 
@@ -130,7 +141,7 @@ export interface OutlierCriteria {
  * cutoff = max(floor, K × robustExtent),
  * floor = max(ABSOLUTE_FLOOR, FLOOR_RANGE_FRACTION × fullRangeSpan):
  * - robustExtent가 작은 도면은 floor가 지배. floor 자체가 도면 전체 범위에 비례하므로
- *   compact 도면이라도 고정 1e6 창이 아니라 도면 크기의 여러 배를 감싼다 → 정상 부속 보호.
+ *   compact 도면이라도 고정 절대창이 아니라 도면 크기의 여러 배를 감싼다 → 정상 부속 보호.
  * - 큰 도면은 K × robustExtent가 지배 → 규모의 수백 배 벗어난 것만 이상치.
  */
 export function computeOutlierCriteria(
