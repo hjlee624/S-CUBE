@@ -33,6 +33,15 @@ export interface DrawingModel {
    * 모델 공간 객체만 렌더·측정 대상으로 삼는다(그룹코드 67=1 제외). 조용히 버리지 않는다.
    */
   paperSpaceExcludedCount: number;
+  /**
+   * DWG 변환이 배치 INSERT를 잃어 렌더 못 하는 고아 블록의 엔티티 수 추정 — 조용히 버리지 않기.
+   *
+   * 일부 DWG→DXF 변환기(LibreDWG 등)는 설계 블록을 모델 공간에 배치하는 top-level INSERT를
+   * 잃어버린다. 그 결과 블록 정의는 남지만 어떤 top-level INSERT로도 도달할 수 없어 렌더·측정에서
+   * 통째로 빠지는 대형 블록이 생긴다. 이 값은 그런 도달 불가 대형 블록들의 엔티티 총합으로,
+   * 손실 규모를 사용자에게 경고하는 데 쓴다. 고아 없으면 0.
+   */
+  orphanedBlockCount: number;
   /** 전체 엔티티 경계 (Zoom Extents 용). 엔티티 없으면 null */
   bounds: Bounds | null;
 }

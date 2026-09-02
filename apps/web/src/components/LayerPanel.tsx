@@ -2,7 +2,12 @@
  * 레이어 패널 (P1-8) — 색상 스와치·엔티티 수·표시 토글 + 미지원 엔티티 집계 (P1-2 연동).
  */
 import type { CSSProperties } from 'react';
-import { aciToRgb, paperSpaceExcludedCount, sanitizedCount } from '../lib/core-api.ts';
+import {
+  aciToRgb,
+  orphanedBlockCount,
+  paperSpaceExcludedCount,
+  sanitizedCount,
+} from '../lib/core-api.ts';
 import { formatCount } from '../lib/format.ts';
 import { useAppStore } from '../store/index.ts';
 
@@ -39,6 +44,8 @@ export function LayerPanel() {
   // 손상 좌표(비유한·초대형)로 폐기·정제된 엔티티 수 — core 진단 필드 (>0일 때만 안내)
   const sanitized = model !== null ? sanitizedCount(model) : 0;
   const paperExcluded = model !== null ? paperSpaceExcludedCount(model) : 0;
+  // DWG 변환이 배치 INSERT를 잃어 렌더 못 하는 설계 객체 — 사용자 조치 필요 (>0일 때만 경고)
+  const orphaned = model !== null ? orphanedBlockCount(model) : 0;
 
   return (
     <aside className="flex w-60 shrink-0 animate-panel-left flex-col border-r border-zinc-800 bg-zinc-950 [animation-delay:80ms]">
@@ -112,6 +119,38 @@ export function LayerPanel() {
           </ul>
         )}
       </div>
+
+      {/* 고아 블록 경고 — DWG 변환이 배치 INSERT를 잃어 설계 객체를 렌더 못 함 (P1-2).
+          단순 집계가 아니라 사용자 조치가 필요하므로 테두리·아이콘으로 강조한다. */}
+      {orphaned > 0 && (
+        <div className="border-t border-zinc-800/70 px-3 py-2.5">
+          <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-2">
+            <svg
+              viewBox="0 0 16 16"
+              className="mt-px h-3.5 w-3.5 shrink-0 text-red-400"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M8 1.5 15 14H1L8 1.5Z"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinejoin="round"
+              />
+              <path d="M8 6.5v3.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              <circle cx="8" cy="11.6" r="0.75" fill="currentColor" />
+            </svg>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-red-300">
+                설계 객체 약 {formatCount(orphaned)}개가 DWG 변환 중 누락됨
+              </p>
+              <p className="mt-0.5 text-[10px] leading-snug text-red-400/80">
+                CAD에서 DXF로 직접 저장하거나 ODA File Converter 사용을 권장합니다.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 손상 좌표 자동 정리 안내 — core가 비유한·초대형 좌표를 폐기·정제한 경우 (경고 톤) */}
       {sanitized > 0 && (

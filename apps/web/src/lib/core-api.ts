@@ -96,3 +96,17 @@ export function paperSpaceExcludedCount(model: DrawingModel): number {
   const v = model.paperSpaceExcludedCount;
   return Number.isFinite(v) && v > 0 ? v : 0;
 }
+
+/**
+ * 고아 블록 진단 — DWG→DXF 변환이 설계 블록을 모델 공간에 놓는 top-level INSERT를
+ * 잃어버려, 정의는 됐지만 어떤 배치로도 도달 불가능해 렌더 못 하는 설계 객체 규모.
+ * 손실을 조용히 넘기지 않고 사용자에게 조치를 유도한다 (P1-2).
+ *
+ * 계약: core가 DrawingModel에 `orphanedBlockCount: number`를 추가했다. 값이 없거나
+ * 비정상(NaN·Infinity·음수)이면 0으로 정규화해, 표시 로직은 "> 0"만 검사하면 되게 한다
+ * (sanitizedCount/paperSpaceExcludedCount와 동일 계약).
+ */
+export function orphanedBlockCount(model: DrawingModel): number {
+  const v = model.orphanedBlockCount;
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
