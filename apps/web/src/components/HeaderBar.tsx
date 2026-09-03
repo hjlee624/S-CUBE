@@ -52,6 +52,7 @@ export function HeaderBar() {
       <button
         type="button"
         onClick={pickDxfFile}
+        data-testid="btn-open-dxf"
         className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-100 transition-all duration-150 hover:bg-zinc-700 active:scale-[0.97]"
       >
         도면 열기

@@ -7,7 +7,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --build && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "@s-cube/core": "workspace:*",
@@ -19,6 +22,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/rbush": "^4.0.0",
     "@types/react": "^19.2.0",
