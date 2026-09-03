@@ -71,6 +71,49 @@ describe('parseStation — 변형 수용 (P3-1)', () => {
   });
 });
 
+describe('parseStation — 번호만 입력 (No.<n>+0.000 로 해석)', () => {
+  it("'8' → no 8, plus 0, chainage 160 (interval 20)", () => {
+    const r = parseStation('8', 20);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.no).toBe(8);
+      expect(r.plus_m).toBe(0);
+      expect(r.chainage_m).toBe(160);
+      expect(r.discontinuity).toBe(null);
+    }
+  });
+
+  it("'No.8' (접두어만, +거리 없음) → No.8+0.000 과 동일", () => {
+    const r = parseStation('No.8', 20);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.chainage_m).toBe(160);
+  });
+
+  it('연속 번호 1·2·3 → 구간 연장이 각각 interval(20)', () => {
+    const a = parseStation('1', 20);
+    const b = parseStation('2', 20);
+    const c = parseStation('3', 20);
+    expect(a.ok && a.chainage_m).toBe(20);
+    expect(b.ok && b.chainage_m).toBe(40);
+    expect(c.ok && c.chainage_m).toBe(60);
+  });
+
+  it("번호만 + 전/후 표기: '8(전)'", () => {
+    const r = parseStation('8(전)', 20);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.chainage_m).toBe(160);
+      expect(r.discontinuity).toBe('pre');
+    }
+  });
+
+  it("소수 번호 '8.5' → chainage 8.5 × interval", () => {
+    const r = parseStation('8.5', 20);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.chainage_m).toBe(170);
+  });
+});
+
 describe('parseStation — 전/후 불연속 표기', () => {
   it("'No.8+0.000(전)' → discontinuity 'pre'", () => {
     const r = parseStation('No.8+0.000(전)', 20);
@@ -144,11 +187,6 @@ describe('parseStation — 실패는 조용히 넘기지 않고 에러 반환 (P
       expect(r.raw).toBe('완전히엉뚱한값');
       expect(r.reason).toContain('인식할 수 없습니다');
     }
-  });
-
-  it("plus 구간 없는 'No.8' → 에러", () => {
-    const r = parseStation('No.8', 20);
-    expect(isStationParseError(r)).toBe(true);
   });
 
   it('유효하지 않은 stationInterval_m → 에러', () => {

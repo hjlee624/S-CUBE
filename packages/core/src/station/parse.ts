@@ -13,6 +13,9 @@ import type { Station } from '@s-cube/schema';
  *   추가 거리(m). chainage_m = no × stationInterval_m + plus_m.
  *   '+000' 은 0.000(m), '+120.5' 는 120.5(m) — 정수 표기도 그대로 m 로 읽는다.
  *
+ *   번호만 입력해도 된다: '8' → 'No.8+0.000' 과 동일(plus_m=0, chainage = 8 × interval).
+ *   '8', '8(전)', '8.5' 처럼 '+' 없는 순수 번호는 측점 번호로 해석한다.
+ *
  * 파싱 실패는 조용히 넘기지 않고 StationParseError 로 돌려준다(P3-1).
  */
 
@@ -68,13 +71,30 @@ export function parseStation(raw: string, stationInterval_m: number): StationPar
   // 접두어 제거: 'No.', 'No', 'STA.', 'STA', '#' (대소문자 무시)
   s = s.replace(/^(?:no\.?|sta\.?|#)/i, '');
 
+  // 번호만 입력한 경우: '8' → No.8+0.000 (plus_m=0, chainage = no × interval).
+  const bare = s.match(/^(\d+(?:\.\d+)?)$/);
+  if (bare !== null) {
+    const noOnly = Number.parseFloat(bare[1] ?? '');
+    if (!Number.isFinite(noOnly)) {
+      return { ok: false, raw: original, reason: `측점 번호 파싱 실패: '${original}'` };
+    }
+    return {
+      ok: true,
+      raw: original,
+      no: noOnly,
+      plus_m: 0,
+      chainage_m: noOnly * stationInterval_m,
+      discontinuity,
+    };
+  }
+
   // 핵심 형태: <no>+<plus>
   const m = s.match(/^(\d+)\+(\d+(?:\.\d+)?)$/);
   if (m === null) {
     return {
       ok: false,
       raw: original,
-      reason: `측점 표기 형식을 인식할 수 없습니다: '${original}' (기대 형식 예: 'No.8+0.000')`,
+      reason: `측점 표기 형식을 인식할 수 없습니다: '${original}' (기대 형식 예: '8', 'No.8+0.000')`,
     };
   }
 
