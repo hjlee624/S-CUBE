@@ -3,21 +3,25 @@
  *
  * LINE, LWPOLYLINE, POLYLINE, ARC, CIRCLE, TEXT, MTEXT(→text), DIMENSION,
  * SOLID(→closed polyline)를 지원한다. INSERT는 expand.ts에서 처리.
- * 미지원·불완전 엔티티는 null을 반환하고 호출부에서 타입명별로 집계한다.
+ * RW-15: ELLIPSE·SPLINE 는 폴리라인 근사(→NPolyline)로 정규화해 렌더·측정 가능하게 한다.
+ * 미지원·불완전 엔티티는 null을 반환하고 호출부에서 타입명별로 집계한다(조용히 버리지 않기).
  */
-import type { NDimension, NEntity, NText, PVertex, Vec2 } from '@s-cube/schema';
+import type { NDimension, NEntity, NPolyline, NText, PVertex, Vec2 } from '@s-cube/schema';
+import { sampleEllipse, sampleSpline } from '../geometry/curves.ts';
 import { distance } from '../geometry/primitives.ts';
 import { decodeMText } from './mtext.ts';
 import type {
   RawArcEntity,
   RawCircleEntity,
   RawDimensionEntity,
+  RawEllipseEntity,
   RawEntityBase,
   RawLineEntity,
   RawMtextEntity,
   RawPoint,
   RawPolylineEntity,
   RawSolidEntity,
+  RawSplineEntity,
   RawTextEntity,
   RawVertex,
 } from './raw-types.ts';
@@ -35,6 +39,8 @@ export const SUPPORTED_ENTITY_TYPES: ReadonlySet<string> = new Set([
   'MTEXT',
   'DIMENSION',
   'SOLID',
+  'ELLIPSE',
+  'SPLINE',
 ]);
 
 function toVec2(p: RawPoint | undefined): Vec2 | null {
@@ -173,6 +179,71 @@ function normalizeSolid(raw: RawSolidEntity): NEntity | null {
 }
 
 /**
+ * ELLIPSE → 폴리라인 근사(파라미터 균등 샘플).
+ * 완전 타원(start===end)이면 closed=true, 타원호면 closed=false 로 정규화한다.
+ * dxf-parser는 그룹코드 41/42를 startAngle/endAngle(라디안 파라미터각)로 노출한다.
+ */
+function normalizeEllipse(raw: RawEllipseEntity): NEntity | null {
+  const center = toVec2(raw.center);
+  const majorEnd = toVec2(raw.majorAxisEndPoint);
+  if (center === null || majorEnd === null) return null;
+  const ratio =
+    typeof raw.axisRatio === 'number' && Number.isFinite(raw.axisRatio) ? raw.axisRatio : 1;
+  const start =
+    typeof raw.startAngle === 'number' && Number.isFinite(raw.startAngle) ? raw.startAngle : 0;
+  const end =
+    typeof raw.endAngle === 'number' && Number.isFinite(raw.endAngle) ? raw.endAngle : Math.PI * 2;
+  // majorAxisEndPoint는 center 기준 상대 벡터.
+  const major: Vec2 = { x: majorEnd.x, y: majorEnd.y };
+  if (major.x === 0 && major.y === 0) return null;
+  const closed = normalizedFullTurn(start, end);
+  const pts = sampleEllipse(center, major, ratio, start, end);
+  const vertices = pts.map<PVertex>((p) => ({ p, bulge: 0 }));
+  if (vertices.length < 2) return null;
+  return { kind: 'polyline', ...baseFields(raw), vertices, closed };
+}
+
+/** start~end 스윕이 완전 회전(2π)인가 — 완전 타원/원 판정 */
+function normalizedFullTurn(start: number, end: number): boolean {
+  const TWO_PI = Math.PI * 2;
+  const diff = (((end - start) % TWO_PI) + TWO_PI) % TWO_PI;
+  return diff === 0;
+}
+
+/**
+ * SPLINE → 폴리라인 근사. knot/차수가 유효하면 de Boor 평가, 아니면 제어점/맞춤점 직결(근사).
+ * 제어점이 없으면 맞춤점(fit points)을 정점으로 사용한다.
+ * closed 플래그(그룹코드 70 bit0)를 폐합 여부에 반영한다.
+ */
+function normalizeSpline(raw: RawSplineEntity): NEntity | null {
+  const closed = raw.closed === true;
+  const ctrl = (raw.controlPoints ?? []).map(toVec2).filter((p): p is Vec2 => p !== null);
+  const fit = (raw.fitPoints ?? []).map(toVec2).filter((p): p is Vec2 => p !== null);
+  const degree =
+    typeof raw.degreeOfSplineCurve === 'number' && raw.degreeOfSplineCurve >= 1
+      ? raw.degreeOfSplineCurve
+      : 3;
+  let pts: Vec2[];
+  if (ctrl.length >= 2) {
+    const knots = (raw.knotValues ?? []).filter((k) => Number.isFinite(k));
+    const weights =
+      raw.weights !== undefined && raw.weights.length === ctrl.length
+        ? raw.weights.filter((w) => Number.isFinite(w))
+        : undefined;
+    pts = sampleSpline(ctrl, degree, knots.length > 0 ? knots : undefined, weights, closed);
+  } else if (fit.length >= 2) {
+    // 제어점 없음 → 맞춤점을 폴리라인으로 직결(근사)
+    pts = fit;
+  } else {
+    return null;
+  }
+  const vertices = pts.map<PVertex>((p) => ({ p, bulge: 0 }));
+  if (vertices.length < 2) return null;
+  const poly: NPolyline = { kind: 'polyline', ...baseFields(raw), vertices, closed };
+  return poly;
+}
+
+/**
  * 원시 엔티티 1건 정규화. 미지원 타입·불완전 데이터는 null.
  * (호출부는 null이면 raw.type 기준으로 unsupportedCounts에 집계한다)
  */
@@ -195,6 +266,10 @@ export function normalizeEntity(raw: RawEntityBase): NEntity | null {
       return normalizeDimension(raw as RawDimensionEntity);
     case 'SOLID':
       return normalizeSolid(raw as RawSolidEntity);
+    case 'ELLIPSE':
+      return normalizeEllipse(raw as RawEllipseEntity);
+    case 'SPLINE':
+      return normalizeSpline(raw as RawSplineEntity);
     default:
       return null;
   }

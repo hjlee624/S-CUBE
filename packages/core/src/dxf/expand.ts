@@ -10,7 +10,7 @@
  * - 블록 내 layer '0' / colorIndex 0(BYBLOCK)·미지정 엔티티는 부모(INSERT/DIMENSION)의
  *   레이어·색을 상속한다(AutoCad 관례) — 치수 텍스트·선의 가시성 직결.
  */
-import type { Mat3, NEntity } from '@s-cube/schema';
+import type { Mat3, NEntity, NHatch } from '@s-cube/schema';
 import {
   composeMat3,
   IDENTITY_MAT3,
@@ -42,6 +42,11 @@ interface ExpandContext {
   blocks: Readonly<Record<string, RawBlock>>;
   unsupportedCounts: Record<string, number>;
   out: NEntity[];
+  /**
+   * RW-2: 블록명 → 그 블록 정의 안의 HATCH[](블록-로컬 좌표). dxf-parser가 HATCH를
+   * 버리므로 원문에서 별도 파싱해 넘긴다. 블록 전개 시 INSERT 변환을 적용해 emit한다.
+   */
+  hatchesByBlock: ReadonlyMap<string, NHatch[]>;
 }
 
 /**
@@ -115,6 +120,7 @@ function expandInsert(
   const rowSpacing = raw.rowSpacing ?? 0;
   const nextPath = [...blockPath, name];
   const childInherit = inheritFrom(raw, parentInherit);
+  const blockHatches = ctx.hatchesByBlock.get(name);
   for (let row = 0; row < rowCount; row++) {
     for (let col = 0; col < columnCount; col++) {
       // 블록 내용 좌표는 기준점(base point) 기준 → T(-base) 선적용.
@@ -122,7 +128,25 @@ function expandInsert(
       const local = mat3Translation(col * columnSpacing - baseX, row * rowSpacing - baseY);
       const instanceMat = composeMat3(parentTransform, composeMat3(insertMat, local));
       walkEntities(ctx, block.entities ?? [], instanceMat, nextPath, depth + 1, childInherit);
+      // RW-2: 이 블록 정의의 HATCH도 같은 인스턴스 변환으로 전개(dxf-parser가 버린 것).
+      if (blockHatches !== undefined) {
+        emitBlockHatches(ctx, blockHatches, instanceMat, nextPath, childInherit);
+      }
     }
+  }
+}
+
+/** 블록 정의의 HATCH[](로컬 좌표)를 인스턴스 변환·상속 적용해 out에 push한다. */
+function emitBlockHatches(
+  ctx: ExpandContext,
+  hatches: readonly NHatch[],
+  transform: Mat3,
+  blockPath: readonly string[],
+  inherit: Inherit | undefined,
+): void {
+  for (const hatch of hatches) {
+    // 원본 공유 방지 — 인스턴스마다 새 객체로 push한다.
+    pushNormalized(ctx, { ...hatch, loops: hatch.loops }, transform, blockPath, inherit);
   }
 }
 
@@ -232,8 +256,9 @@ export function expandAndNormalize(
   rawEntities: readonly RawEntityBase[],
   blocks: Readonly<Record<string, RawBlock>>,
   unsupportedCounts: Record<string, number>,
+  hatchesByBlock: ReadonlyMap<string, NHatch[]> = new Map(),
 ): NEntity[] {
-  const ctx: ExpandContext = { blocks, unsupportedCounts, out: [] };
+  const ctx: ExpandContext = { blocks, unsupportedCounts, out: [], hatchesByBlock };
   walkEntities(ctx, rawEntities, IDENTITY_MAT3, [], 0, undefined);
   return ctx.out;
 }

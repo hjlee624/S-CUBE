@@ -178,8 +178,13 @@ export function netAreaWithHoles(outer: PVertex[], holes: PVertex[][]): number {
 }
 
 /**
- * HATCH 면적 — Loop 들에서 외곽(isOuter) 면적 합 − 내부 루프 면적 합.
- * 다중 외곽/내부 루프를 모두 지원한다(음수면 0으로 클램프).
+ * HATCH 면적 — even-odd 규칙: 채움(외곽 계열) loop 면적 합 − 구멍 loop 면적 합.
+ *
+ * loop.isOuter 는 파서(parse-hatch.ts)가 **홀짝 중첩 깊이**로 결정한다:
+ * 깊이 짝수(0·2·…)=채움(additive, isOuter=true), 홀수(1·3·…)=구멍(subtractive, isOuter=false).
+ * 따라서 이 함수는 additive 면적 합에서 subtractive 면적 합을 빼면 된다. 다중 외곽(disjoint)·
+ * 섬-속-섬(island-in-island, 깊이 2 → 다시 채움)·깊이 2 구멍(깊이 3)까지 올바르게 처리된다.
+ * (음수면 0으로 클램프.)
  */
 export function hatchArea(loops: Loop[]): number {
   let outer = 0;

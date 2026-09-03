@@ -8,7 +8,10 @@
 
 /** dxf-parser 1.1.2에 엔티티 핸들러가 등록된 타입 + 구조 마커 */
 const PARSER_KNOWN_MARKERS: ReadonlySet<string> = new Set([
-  // 파서가 파싱해서 entities에 넣는 타입 (정규화 단계에서 별도 처리/집계)
+  // 파서가 파싱해서 entities에 넣는 타입. 정규화(normalize.ts)에서 NEntity로 흡수되며,
+  // 정규화에 실패한 개별 엔티티만 expand.ts가 타입명별로 unsupportedCounts에 집계한다.
+  // ELLIPSE·SPLINE 은 RW-15에서 폴리라인 근사로 정규화되므로 여기서 원문 스캔 대상이 아니다
+  // (파서가 raw 로 넘겨주고 normalize 가 처리 — 원문 스캔은 파서가 '버리는' 타입 전용).
   'POINT',
   '3DFACE',
   'ARC',

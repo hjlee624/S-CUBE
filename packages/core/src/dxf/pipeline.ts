@@ -10,6 +10,7 @@ import type { DrawingModel, Layer, NEntity } from '@s-cube/schema';
 import { entityBounds, mergeBounds } from '../geometry/bounds.ts';
 import { expandAndNormalize } from './expand.ts';
 import { parseDxfRaw } from './parse.ts';
+import { parseHatchEntities } from './parse-hatch.ts';
 import type { RawDxf } from './raw-types.ts';
 import { sanitizeEntities } from './sanitize.ts';
 import { scanParserDroppedTypes } from './scan-unsupported.ts';
@@ -66,12 +67,39 @@ export function parseAndNormalizeDxf(text: string): DrawingModel {
   // 블록 전개 전에 최상위에서 걸러야 페이퍼 스페이스 INSERT의 하위까지 함께 제외된다.
   const allRawEntities = raw.entities ?? [];
   const modelEntities = allRawEntities.filter((e) => e.inPaperSpace !== true);
-  const paperSpaceExcludedCount = allRawEntities.length - modelEntities.length;
+  const rawPaperSpaceExcluded = allRawEntities.length - modelEntities.length;
   const blocks = raw.blocks ?? {};
-  const normalized = expandAndNormalize(modelEntities, blocks, unsupportedCounts);
+
+  // RW-2: HATCH는 dxf-parser가 버리므로 원문 DXF에서 경계 loop를 직접 파싱한다.
+  // 실도면에서 HATCH는 대부분 블록 정의(BLOCKS) 안에 있고 ENTITIES의 INSERT로 배치되므로,
+  // 블록별 HATCH는 expandAndNormalize에 넘겨 INSERT 변환으로 전개하고(hatchesByBlock),
+  // 모델 공간(ENTITIES)에 직접 있는 HATCH만 여기서 최상위 병합한다.
+  const hatchResult = parseHatchEntities(text);
+  const normalized = expandAndNormalize(
+    modelEntities,
+    blocks,
+    unsupportedCounts,
+    hatchResult.hatchesByBlock,
+  );
+
+  // 성공 파싱한 HATCH는 이제 지원되므로 최종 unsupportedCounts.HATCH에는 "구조 파싱에 실패해
+  // 못 읽은 HATCH"(failedCount)만 남긴다(P1-2). 사전 스캔값(scannedHatch)은 페이퍼 스페이스·
+  // 성공 파싱까지 포함한 원문 총계이므로 신뢰하지 않고, failedCount로 무조건 덮어쓴다.
+  // 이렇게 하면 사전 스캔이 HATCH 변종을 놓쳐 0이어도(scannedHatch=0) 실제 파싱 실패가
+  // 조용히 사라지지 않는다. 실패 0이면 키를 삭제한다.
+  if (hatchResult.failedCount > 0) unsupportedCounts.HATCH = hatchResult.failedCount;
+  else delete unsupportedCounts.HATCH;
+  // 페이퍼 스페이스 HATCH는 dxf-parser가 애초에 버려 raw.entities에 없으므로 여기서 합산한다.
+  const paperSpaceExcludedCount = rawPaperSpaceExcluded + hatchResult.paperSpaceExcludedCount;
+
   // A. 좌표 위생처리 — 쓰레기 좌표(비유한·비현실적 초과)를 제거해 bounds 오염을 막는다.
   // 레이어 사용 수·bounds는 위생처리 후의 정상 엔티티만 반영해야 한다.
-  const { entities, sanitizedCount } = sanitizeEntities(normalized);
+  // HATCH도 위생처리·상대 이상치 대상에 포함해 손상 loop가 bounds를 오염시키지 않게 한다.
+  // 모델 공간 HATCH는 여기서 병합(블록 HATCH는 이미 normalized에 전개됨).
+  const { entities, sanitizedCount } = sanitizeEntities([
+    ...normalized,
+    ...hatchResult.modelHatches,
+  ]);
   return {
     dxfVersion: readHeaderString(raw, '$ACADVER') ?? '',
     insUnits: readHeaderNumber(raw, '$INSUNITS') ?? 0,

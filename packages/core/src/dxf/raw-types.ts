@@ -82,6 +82,32 @@ export interface RawSolidEntity extends RawEntityBase {
   points?: RawPoint[];
 }
 
+export interface RawEllipseEntity extends RawEntityBase {
+  center?: RawPoint;
+  /** 장축 끝점 (center 기준 상대 벡터, 그룹코드 11/21) */
+  majorAxisEndPoint?: RawPoint;
+  /** 부축/장축 길이비 (그룹코드 40) */
+  axisRatio?: number;
+  /** 시작 파라미터각 (라디안, 그룹코드 41) — dxf-parser는 startAngle로 노출 */
+  startAngle?: number;
+  /** 끝 파라미터각 (라디안, 그룹코드 42) — 전각 0(=2π)이면 완전 타원 */
+  endAngle?: number;
+}
+
+export interface RawSplineEntity extends RawEntityBase {
+  /** 그룹코드 70 bit0 → 폐합 (dxf-parser가 closed로 노출) */
+  closed?: boolean;
+  /** 차수 (그룹코드 71) */
+  degreeOfSplineCurve?: number;
+  numberOfKnots?: number;
+  numberOfControlPoints?: number;
+  numberOfFitPoints?: number;
+  knotValues?: number[];
+  weights?: number[];
+  controlPoints?: RawPoint[];
+  fitPoints?: RawPoint[];
+}
+
 export interface RawInsertEntity extends RawEntityBase {
   name?: string;
   xScale?: number;

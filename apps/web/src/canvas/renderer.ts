@@ -552,7 +552,7 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  /** 스냅 마커 — endpoint □ / midpoint △ / center ○ (CAD 관례) */
+  /** 스냅 마커 — endpoint □ / intersection ✕ / midpoint △ / center ○ (CAD 관례) */
   private drawSnapMarker(
     ctx: CanvasRenderingContext2D,
     vp: Viewport,
@@ -572,6 +572,12 @@ export class CanvasRenderer {
     ctx.beginPath();
     if (snap.kind === 'endpoint') {
       ctx.rect(s.x - r, s.y - r, r * 2, r * 2);
+    } else if (snap.kind === 'intersection') {
+      // 교차점 — X 표시 (CAD 관례)
+      ctx.moveTo(s.x - r, s.y - r);
+      ctx.lineTo(s.x + r, s.y + r);
+      ctx.moveTo(s.x + r, s.y - r);
+      ctx.lineTo(s.x - r, s.y + r);
     } else if (snap.kind === 'midpoint') {
       ctx.moveTo(s.x, s.y - r - 1);
       ctx.lineTo(s.x + r, s.y + r - 1);

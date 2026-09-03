@@ -262,6 +262,79 @@ describe('parseAndNormalizeDxf — synthetic-dim-block.dxf (치수블록 전개 
   });
 });
 
+describe('parseAndNormalizeDxf — synthetic-ellipse.dxf (RW-15 ELLIPSE 근사)', () => {
+  const model = parseAndNormalizeDxf(readFixture('synthetic-ellipse.dxf'));
+  const polys = model.entities.filter((e): e is NPolyline => e.kind === 'polyline');
+
+  it('ELLIPSE 2개가 폴리라인 근사로 정규화 (미지원 집계 없음)', () => {
+    expect(polys).toHaveLength(2);
+    expect(model.unsupportedCounts.ELLIPSE).toBeUndefined();
+    expect(model.unsupportedCounts).toEqual({});
+  });
+
+  it('완전 타원 → closed 폴리라인, 다분할', () => {
+    const full = polys.find((p) => p.closed);
+    expect(full).toBeDefined();
+    expect(full?.vertices.length).toBeGreaterThanOrEqual(64);
+  });
+
+  it('타원호(1/4) → open 폴리라인', () => {
+    const arc = polys.find((p) => !p.closed);
+    expect(arc).toBeDefined();
+    expect(arc?.vertices.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it('bounds — 장반경 10·단반경 5 반영 (근사)', () => {
+    // 완전 타원 x[-10,10] y[-5,5] + 1/4 타원 x[100,110] y[0,5]
+    expect(model.bounds?.minX).toBeCloseTo(-10, 6);
+    expect(model.bounds?.maxX).toBeCloseTo(110, 6);
+    expect(model.bounds?.minY).toBeCloseTo(-5, 6);
+    expect(model.bounds?.maxY).toBeCloseTo(5, 6);
+  });
+});
+
+describe('parseAndNormalizeDxf — synthetic-ellipse-bad.dxf (불완전 ELLIPSE 집계)', () => {
+  const model = parseAndNormalizeDxf(readFixture('synthetic-ellipse-bad.dxf'));
+
+  it('장축 벡터가 0인 ELLIPSE는 정규화 실패 → unsupportedCounts.ELLIPSE=1 (조용히 버리지 않음)', () => {
+    expect(model.unsupportedCounts.ELLIPSE).toBe(1);
+    // 정상 LINE은 남는다
+    expect(model.entities.filter((e) => e.kind === 'line')).toHaveLength(1);
+  });
+});
+
+describe('parseAndNormalizeDxf — synthetic-spline.dxf (RW-15 SPLINE 근사)', () => {
+  const model = parseAndNormalizeDxf(readFixture('synthetic-spline.dxf'));
+  const polys = model.entities.filter((e): e is NPolyline => e.kind === 'polyline');
+
+  it('SPLINE 2개가 폴리라인 근사로 정규화 (미지원 집계 없음)', () => {
+    expect(polys).toHaveLength(2);
+    expect(model.unsupportedCounts.SPLINE).toBeUndefined();
+    expect(model.unsupportedCounts).toEqual({});
+  });
+
+  it('제어점 clamped 스플라인 → 다분할 open 폴리라인, 끝점이 제어 끝점에 고정', () => {
+    const open = polys.find((p) => !p.closed);
+    expect(open).toBeDefined();
+    expect(open?.vertices.length).toBeGreaterThanOrEqual(64);
+    // clamped B-spline은 첫/끝 제어점을 지난다: (0,0) → (10,0)
+    const first = open?.vertices[0];
+    const last = open?.vertices[(open?.vertices.length ?? 1) - 1];
+    expect(first?.p.x).toBeCloseTo(0, 6);
+    expect(first?.p.y).toBeCloseTo(0, 6);
+    expect(last?.p.x).toBeCloseTo(10, 6);
+    expect(last?.p.y).toBeCloseTo(0, 6);
+  });
+
+  it('맞춤점(fit points)만 있는 폐합 스플라인 → closed 폴리라인 (맞춤점 직결 근사)', () => {
+    const closed = polys.find((p) => p.closed);
+    expect(closed).toBeDefined();
+    // 제어점 없음 → 맞춤점 4개 직결
+    expect(closed?.vertices).toHaveLength(4);
+    expect(closed?.vertices[0]?.p).toEqual({ x: 20, y: 0 });
+  });
+});
+
 describe('parseAndNormalizeDxf — 오류·순환 참조', () => {
   it('빈 입력은 한국어 메시지로 실패', () => {
     expect(() => parseAndNormalizeDxf('')).toThrow(/DXF 파싱 실패/);

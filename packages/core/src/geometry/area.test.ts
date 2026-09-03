@@ -206,4 +206,23 @@ describe('hatchArea — 외곽 − 내부 루프', () => {
     ];
     expect(hatchArea(loops)).toBe(0);
   });
+
+  it('다중 외곽(disjoint) 2개 + 구멍 1개 → 10000 + 10000 − 1600 = 18400', () => {
+    const loops: Loop[] = [
+      { vertices: [pv(0, 0), pv(100, 0), pv(100, 100), pv(0, 100)], isOuter: true },
+      { vertices: [pv(30, 30), pv(70, 30), pv(70, 70), pv(30, 70)], isOuter: false },
+      { vertices: [pv(200, 0), pv(300, 0), pv(300, 100), pv(200, 100)], isOuter: true },
+    ];
+    expect(hatchArea(loops)).toBeCloseTo(18400, 9);
+  });
+
+  it('섬-속-섬(even-odd 깊이 0·1·2): 채움-구멍-채움 → 10000 − 3600 + 400 = 6800', () => {
+    // 깊이 0(외곽·채움), 깊이 1(구멍), 깊이 2(다시 채움) — isOuter 는 짝수 깊이=채움 규약.
+    const loops: Loop[] = [
+      { vertices: [pv(0, 0), pv(100, 0), pv(100, 100), pv(0, 100)], isOuter: true },
+      { vertices: [pv(20, 20), pv(80, 20), pv(80, 80), pv(20, 80)], isOuter: false },
+      { vertices: [pv(40, 40), pv(60, 40), pv(60, 60), pv(40, 60)], isOuter: true },
+    ];
+    expect(hatchArea(loops)).toBeCloseTo(6800, 9);
+  });
 });
