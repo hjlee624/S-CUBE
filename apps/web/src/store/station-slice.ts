@@ -119,11 +119,26 @@ export const createStationSlice: StateCreator<AppState, [], [], StationSlice> = 
   addSection: (section) => {
     set((s) => ({ sections: addSection(s.sections, section) }));
     get().recomputeTakeoff();
+    get().addHistoryEntry({
+      actor: get().author || '사용자',
+      kind: 'section',
+      targetId: section.id,
+      detail: `단면 추가: ${section.station.raw}`,
+    });
   },
 
   removeSection: (id) => {
+    const sec = get().sections.find((s) => s.id === id);
     set((s) => ({ sections: removeSection(s.sections, id) }));
     get().recomputeTakeoff();
+    if (sec !== undefined) {
+      get().addHistoryEntry({
+        actor: get().author || '사용자',
+        kind: 'section',
+        targetId: id,
+        detail: `단면 삭제: ${sec.station.raw}`,
+      });
+    }
   },
 
   updateSectionArea: (id, area_m2) => {

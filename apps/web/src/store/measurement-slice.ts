@@ -69,16 +69,30 @@ export const createMeasurementSlice: StateCreator<AppState, [], [], MeasurementS
       // 새로 추가된 측정을 단일 선택으로 만들어 즉시 하이라이트·미리보기
       selectedMeasurementIds: [m.id],
     }));
-    // P4-10: 측정 원본 변경 → 이 측정을 소스로 쓰는 하위 산출 항목 전부 재계산.
     get().recomputeTakeoff();
+    get().addHistoryEntry({
+      actor: get().author || '사용자',
+      kind: 'measurement',
+      targetId: m.id,
+      detail: `측정 추가: ${m.label}`,
+    });
   },
 
   removeMeasurement: (id) => {
+    const m = get().measurements.find((x) => x.id === id);
     set((s) => ({
       measurements: removeMeasurement(s.measurements, id),
       selectedMeasurementIds: s.selectedMeasurementIds.filter((sid) => sid !== id),
     }));
     get().recomputeTakeoff();
+    if (m !== undefined) {
+      get().addHistoryEntry({
+        actor: get().author || '사용자',
+        kind: 'measurement',
+        targetId: id,
+        detail: `측정 삭제: ${m.label}`,
+      });
+    }
   },
 
   updateMeasurementLabel: (id, label) => {

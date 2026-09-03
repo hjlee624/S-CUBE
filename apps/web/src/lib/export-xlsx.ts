@@ -26,7 +26,13 @@ type BuildWorkbook = (project: ScubeProject) => Promise<ArrayBuffer | Uint8Array
 
 /** 내보내기 전 경고 한 건 */
 export interface ExportWarning {
-  kind: 'no-calibration' | 'blocked-section' | 'blocked-item' | 'empty';
+  kind:
+    | 'no-calibration'
+    | 'blocked-section'
+    | 'blocked-item'
+    | 'empty'
+    | 'unsupported-entities'
+    | 'sanitized-coords';
   message: string;
 }
 
@@ -39,7 +45,14 @@ export interface ExportWarning {
  * - empty: 산출 항목이 하나도 없음.
  */
 export function validateBeforeExport(state: {
-  drawings: { fileName: string; calibration: AppState['calibration'] }[];
+  drawings: {
+    fileName: string;
+    calibration: AppState['calibration'];
+    /** 미지원 엔티티 종류별 개수 (DrawingModel.unsupportedCounts) */
+    unsupportedCounts?: Record<string, number>;
+    /** 이상치 좌표 교정 수 (DrawingModel.sanitizedCount) */
+    sanitizedCount?: number;
+  }[];
   sections: AppState['sections'];
   itemKeys: string[];
   items: AppState['items'];
@@ -54,6 +67,28 @@ export function validateBeforeExport(state: {
         .map((d) => d.fileName)
         .join(', ')})`,
     });
+  }
+
+  // RW-8: 미지원 엔티티·이상치 좌표 교정 경고
+  for (const d of state.drawings) {
+    if (d.unsupportedCounts !== undefined) {
+      const total = Object.values(d.unsupportedCounts).reduce((s, n) => s + n, 0);
+      if (total > 0) {
+        const detail = Object.entries(d.unsupportedCounts)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(', ');
+        warnings.push({
+          kind: 'unsupported-entities',
+          message: `${d.fileName}: 미지원 엔티티 ${total}개 (${detail}) — 해당 형상은 면적 산출에서 제외됩니다`,
+        });
+      }
+    }
+    if ((d.sanitizedCount ?? 0) > 0) {
+      warnings.push({
+        kind: 'sanitized-coords',
+        message: `${d.fileName}: 이상치 좌표 ${d.sanitizedCount}개 교정됨 — 원본 도면에서 확인하세요`,
+      });
+    }
   }
 
   for (const key of state.itemKeys) {
@@ -98,6 +133,7 @@ export function assemblyInputFromState(state: AppState): ProjectAssemblyInput {
     sections: state.sections,
     specs: state.specs,
     items: state.items,
+    history: state.history,
     existingCreatedAt: state.createdAt,
   };
 }

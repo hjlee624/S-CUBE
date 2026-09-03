@@ -559,7 +559,7 @@ async function readBack(buf: ArrayBuffer): Promise<ExcelJS.Workbook> {
 }
 
 describe('buildWorkbook — 구조', () => {
-  it('시트 5종을 지정 순서로 생성한다', async () => {
+  it('시트 6종을 지정 순서로 생성한다 (RW-8 검증 리포트 포함)', async () => {
     const wb = await readBack(await buildWorkbook(makeProject()));
     const names = wb.worksheets.map((w) => w.name);
     expect(names).toEqual([
@@ -568,6 +568,7 @@ describe('buildWorkbook — 구조', () => {
       SHEET_NAMES.takeoff,
       SHEET_NAMES.detail,
       SHEET_NAMES.ledger,
+      SHEET_NAMES.verification,
     ]);
   });
 

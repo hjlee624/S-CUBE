@@ -37,6 +37,7 @@ export const SHEET_NAMES = {
   takeoff: '수량산출서',
   detail: '측점별 상세',
   ledger: '측정 원장',
+  verification: '검증 리포트',
 } as const;
 
 const DISCONTINUITY_RANK: Record<string, number> = { pre: 0, null: 1, post: 2 };
@@ -402,9 +403,62 @@ function buildSummarySheet(
 }
 
 /**
+ * ── 6) 검증 리포트 시트 (RW-8) ──────────────────────────────
+ *
+ * 내보내기 시점 검증 요약 — 항목별 역추적 체인(셀 참조 수식)·계산유형·수량을 나열한다.
+ * 이 시트는 감리 역추적 근거 보존용이며 수식 수량 계산에 관여하지 않는다.
+ */
+function buildVerificationSheet(
+  ws: ExcelJS.Worksheet,
+  project: ScubeProject,
+  cells: CellMap,
+): void {
+  ws.getColumn(1).width = 28; // 항목명
+  ws.getColumn(2).width = 20; // 공종
+  ws.getColumn(3).width = 8; // 단위
+  ws.getColumn(4).width = 10; // 계산유형
+  ws.getColumn(5).width = 14; // 수량
+  ws.getColumn(6).width = 60; // 산출 수식(역추적 체인)
+
+  styleHeaderRow(ws.addRow(['항목명', '공종', '단위', '계산유형', '수량', '산출수식(역추적)']));
+
+  const cellOf = cells.resolver();
+  for (const item of project.items) {
+    const formula = renderExcelFormula(item.basis, cellOf);
+    const row = ws.addRow([
+      item.name,
+      item.workType,
+      item.unit,
+      item.calcType ?? '-',
+      null, // 수량 — 수식으로
+      formula !== '' ? `=${formula}` : '-',
+    ]);
+    applyBodyStyle(row);
+    // 수량 셀: 수량산출서 수량 셀 참조 (역추적 고리 유지)
+    const qtyCell = row.getCell(5);
+    const qtyRef = cells.get(itemQuantityKey(item.id));
+    if (qtyRef !== undefined) {
+      qtyCell.value = { formula: qtyRef };
+    } else {
+      qtyCell.value = item.quantity;
+    }
+    qtyCell.numFmt = NUM_FMT.quantity;
+    qtyCell.alignment = { horizontal: 'right', vertical: 'middle' };
+  }
+
+  // 검증 메모
+  const infoRow = project.items.length + 3;
+  const infoCell = ws.getCell(`A${infoRow}`);
+  infoCell.value = `생성: ${project.meta.author || '-'} | 항목 ${project.items.length}건 | 측정 ${project.measurements.length}건 | 측점 단면 ${project.sections.length}건`;
+  infoCell.font = { name: KOREAN_FONT, size: 9, color: { argb: 'FF888888' } };
+
+  ws.views = [{ state: 'frozen', ySplit: 1 }];
+}
+
+/**
  * ScubeProject → 수량산출서 xlsx (P4-11 ~ P4-13).
  *
- * 시트 순서: 표지 → 집계표 → 수량산출서 → 측점별 상세 → 측정 원장.
+ * 시트 순서: 표지 → 집계표 → 수량산출서 → 측점별 상세 → 측정 원장 → 검증 리포트.
  * 시트는 표시 순서로 먼저 생성해두고, 셀 배치는 의존 순서(상세·측정 → 수량산출서 →
  * 집계표)로 채운다. 수량 셀은 값이 아니라 수식이다 (P4-12).
  */
@@ -419,6 +473,7 @@ export async function buildWorkbook(project: ScubeProject): Promise<ArrayBuffer>
   const takeoffWs = wb.addWorksheet(SHEET_NAMES.takeoff);
   const detailWs = wb.addWorksheet(SHEET_NAMES.detail);
   const ledgerWs = wb.addWorksheet(SHEET_NAMES.ledger);
+  const verifyWs = wb.addWorksheet(SHEET_NAMES.verification);
 
   const cells = new CellMap();
 
@@ -431,6 +486,9 @@ export async function buildWorkbook(project: ScubeProject): Promise<ArrayBuffer>
 
   // 집계표: 수량산출서 SUMIF 참조
   buildSummarySheet(summaryWs, project, takeoffLayout);
+
+  // 검증 리포트: 역추적 체인 열 (RW-8)
+  buildVerificationSheet(verifyWs, project, cells);
 
   // 표지 (참조 없음)
   buildCoverSheet(coverWs, project);

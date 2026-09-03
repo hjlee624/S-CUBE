@@ -66,14 +66,25 @@ export function moveItem(
 export const createTakeoffSlice: StateCreator<AppState, [], [], TakeoffSlice> = (set, get) => ({
   items: [],
 
-  addTakeoffItem: (draft) =>
+  addTakeoffItem: (draft) => {
+    let addedId = '';
     set((s) => {
-      // 조립 시점에 basis·quantity 를 확정한다(소스·규격·현재 단면·측정 원장 기준).
       const spec =
         draft.specCode !== '' ? s.specs.find((sp) => sp.code === draft.specCode) : undefined;
       const assembled = reassembleItem(draft, spec, s.sections, s.items, s.measurements);
+      addedId = assembled.id;
       return { items: addItem(s.items, assembled) };
-    }),
+    });
+    const added = get().items.find((it) => it.id === addedId);
+    if (added !== undefined) {
+      get().addHistoryEntry({
+        actor: get().author || '사용자',
+        kind: 'item',
+        targetId: added.id,
+        detail: `항목 추가: ${added.name} (${Number.isNaN(added.quantity) ? '산출불가' : `${added.quantity.toFixed(3)} ${added.unit}`})`,
+      });
+    }
+  },
 
   updateTakeoffItem: (id, patch) =>
     set((s) => {
@@ -87,7 +98,18 @@ export const createTakeoffSlice: StateCreator<AppState, [], [], TakeoffSlice> = 
       return { items };
     }),
 
-  removeTakeoffItem: (id) => set((s) => ({ items: removeItem(s.items, id) })),
+  removeTakeoffItem: (id) => {
+    const item = get().items.find((it) => it.id === id);
+    set((s) => ({ items: removeItem(s.items, id) }));
+    if (item !== undefined) {
+      get().addHistoryEntry({
+        actor: get().author || '사용자',
+        kind: 'item',
+        targetId: id,
+        detail: `항목 삭제: ${item.name}`,
+      });
+    }
+  },
 
   moveTakeoffItem: (from, to) => set((s) => ({ items: moveItem(s.items, from, to) })),
 

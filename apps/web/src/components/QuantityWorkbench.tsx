@@ -75,8 +75,11 @@ function WorkbenchBody({ tab }: { tab: WorkbenchTab }) {
   }
 }
 
-/** 내보내기 탭 — .scube 열기/저장 + 수량산출서 xlsx (ProjectActions 재사용) */
+/** 내보내기 탭 — .scube 열기/저장 + 수량산출서 xlsx + 감사 로그 (RW-8·9) */
 function ExportPane() {
+  const history = useAppStore((s) => s.history);
+  const recent = history.slice(-30).reverse();
+
   return (
     <div className="flex h-full flex-col items-start gap-4 overflow-auto p-6">
       <div className="max-w-lg space-y-1">
@@ -88,6 +91,37 @@ function ExportPane() {
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <ProjectActions />
+      </div>
+      {/* 감사 로그 (RW-9) */}
+      <div className="w-full max-w-2xl">
+        <h4 className="mb-1.5 text-[11px] font-semibold text-zinc-400">
+          편집 이력 (최근 {recent.length}건)
+        </h4>
+        {recent.length === 0 ? (
+          <p className="text-[11px] text-zinc-600">아직 편집 이력이 없습니다.</p>
+        ) : (
+          <ul className="space-y-0.5">
+            {recent.map((entry) => (
+              <li key={entry.id} className="flex items-baseline gap-2 text-[11px]">
+                <span className="shrink-0 tabular-nums text-zinc-600">
+                  {entry.at.replace('T', ' ').slice(0, 16)}
+                </span>
+                <span
+                  className={
+                    entry.kind === 'item'
+                      ? 'text-emerald-400'
+                      : entry.kind === 'measurement'
+                        ? 'text-sky-400'
+                        : 'text-amber-400'
+                  }
+                >
+                  [{entry.kind}]
+                </span>
+                <span className="text-zinc-300">{entry.detail}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

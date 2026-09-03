@@ -16,6 +16,13 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
   setProjectName: (name) => set({ projectName: name }),
   setAuthor: (author) => set({ author }),
 
+  history: [],
+  addHistoryEntry: (entry) =>
+    set((s) => ({
+      history: [...s.history, { ...entry, id: crypto.randomUUID(), at: new Date().toISOString() }],
+    })),
+  replaceHistory: (entries) => set({ history: entries }),
+
   takeoffDockOpen: false,
   takeoffDockTab: 'items',
 

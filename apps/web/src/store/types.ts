@@ -3,6 +3,7 @@
  */
 import type {
   Calibration,
+  ChangeLogEntry,
   DrawingModel,
   DrawingRole,
   MaterialSpec,
@@ -266,6 +267,12 @@ export interface ProjectSlice {
   createdAt: string;
   setProjectName: (name: string) => void;
   setAuthor: (author: string) => void;
+  /** 감사 로그 (RW-9, FR-7.3) — measurement·section·item 편집이력 */
+  history: ChangeLogEntry[];
+  /** 감사 로그 한 건 추가 — id·at 는 자동 생성 */
+  addHistoryEntry: (entry: Omit<ChangeLogEntry, 'id' | 'at'>) => void;
+  /** 프로젝트 복원 시 전체 교체 */
+  replaceHistory: (entries: ChangeLogEntry[]) => void;
   /** 산출 도크 열림 (Phase 4) */
   takeoffDockOpen: boolean;
   /** 산출 도크 활성 탭 */

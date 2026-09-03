@@ -178,7 +178,7 @@ function wrapBelow(node: FormulaNode, prec: number): string {
 export function renderText(node: FormulaNode): string {
   switch (node.op) {
     case 'const':
-      return formatNumber(node.value);
+      return node.label ?? formatNumber(node.value);
     case 'ref':
       return node.label;
     case 'add':

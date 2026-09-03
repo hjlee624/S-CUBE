@@ -21,6 +21,8 @@ export function ProjectActions() {
       drawings: state.drawings.map((d) => ({
         fileName: d.fileName,
         calibration: d.id === state.activeId ? state.calibration : d.calibration,
+        unsupportedCounts: d.model.unsupportedCounts,
+        sanitizedCount: d.model.sanitizedCount,
       })),
       sections: state.sections,
       itemKeys: state.itemKeys,
