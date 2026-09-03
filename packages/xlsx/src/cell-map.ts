@@ -35,6 +35,15 @@ export function itemQuantityKey(itemId: string): string {
   return `item:${itemId}:quantity`;
 }
 
+/**
+ * 파생 수량(RW-5) 기하 논리 키 — 기준 항목의 단면 둘레/외곽 둘레/바닥 면적.
+ * 거푸집·비계는 둘레(perimeter), 동바리는 바닥 수평 면적(floor-area)을 참조한다.
+ * 이 값들은 기준 항목의 단면 폴리라인 기하에서 산출된다(계수 손입력 폐지).
+ */
+export function itemGeometryKey(itemId: string, field: 'perimeter' | 'floor-area'): string {
+  return `item:${itemId}:${field}`;
+}
+
 /** 논리 키 → 실제 엑셀 셀 주소 맵 (1-pass 에서 채우고 2-pass 에서 읽는다) */
 export class CellMap {
   private readonly map = new Map<string, string>();

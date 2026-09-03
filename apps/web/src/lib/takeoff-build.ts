@@ -13,11 +13,16 @@ import {
   applyLoss,
   buildSegments,
   convertUnit,
+  derivedContact,
+  derivedScaffold,
+  derivedShore,
   evaluate,
   fConst,
   fMul,
   fRef,
   fSum,
+  polygonArea,
+  polylineLength,
   type SectionInput,
   segmentId,
   totalVolume,
@@ -27,20 +32,43 @@ import type {
   FormulaNode,
   MaterialSpec,
   Measurement,
+  PVertex,
   StationSection,
 } from '@s-cube/schema';
 // cell-map 서브패스만 임포트 — @s-cube/xlsx 배럴(exceljs 포함 buildWorkbook)을 정적 그래프에
 // 끌어오지 않도록 순수 셀 키 헬퍼만 가져온다(export-xlsx 의 지연 로드 의도 보존).
-import { itemQuantityKey, measurementValueKey, segmentKey } from '@s-cube/xlsx/cell-map';
+import {
+  itemGeometryKey,
+  itemQuantityKey,
+  measurementValueKey,
+  segmentKey,
+} from '@s-cube/xlsx/cell-map';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 수량 소스 — 항목이 어디서 수량을 가져오는가 (P4-7)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** 수량 소스 종류 */
-export const TAKEOFF_SOURCE_KINDS = ['measurement', 'segment-volume', 'manual', 'ref'] as const;
+export const TAKEOFF_SOURCE_KINDS = [
+  'measurement',
+  'segment-volume',
+  'manual',
+  'ref',
+  'derived-contact',
+  'derived-scaffold',
+  'derived-shore',
+] as const;
 
 export type TakeoffSourceKind = (typeof TAKEOFF_SOURCE_KINDS)[number];
+
+/** 파생 소스 종류 — 기준 콘크리트 항목에서 자동 전개되는 3종 (RW-5) */
+export const DERIVED_SOURCE_KINDS = [
+  'derived-contact',
+  'derived-scaffold',
+  'derived-shore',
+] as const;
+
+export type DerivedSourceKind = (typeof DERIVED_SOURCE_KINDS)[number];
 
 /** 측정값 소스 — 도면 측정 한 건(면적/연장)을 그대로 수량으로 */
 export interface MeasurementSource {
@@ -51,8 +79,6 @@ export interface MeasurementSource {
   value: number;
   /** 표시 라벨 (측정 label) */
   label: string;
-  /** area-thickness 계산 시 두께(m) — 규격에서 파생, 미지정이면 area/length 그대로 */
-  thickness_m?: number;
 }
 
 /** 구간 체적 소스 — 한 itemKey 의 buildSegments → totalVolume (양단면평균법) */
@@ -83,7 +109,61 @@ export interface RefSource {
   factorLabel?: string;
 }
 
-export type TakeoffSource = MeasurementSource | SegmentVolumeSource | ManualSource | RefSource;
+/**
+ * 파생 소스 — 옹벽 1기 콘크리트 입력에서 거푸집·비계·동바리를 자동 전개 (RW-5, FR-4.9).
+ *
+ * 핵심 UX: 사용자는 기준 콘크리트 항목(baseItemId)을 선택하고 높이/타설고 1개만 입력한다.
+ * 계수 손입력은 없다 — 둘레/면적은 기준 항목의 단면 폴리라인 기하에서 산출된다.
+ *   - derived-contact(거푸집)  = 기준 단면 둘레 × 구간 연장  → ㎡
+ *   - derived-scaffold(비계)   = 외곽 둘레 × 높이            → ㎡
+ *   - derived-shore(동바리)    = 바닥 수평 면적 × 높이(타설고) → 공㎥
+ *
+ * basePolyline 은 기준 항목의 단면(또는 외곽/바닥) 폴리라인 정점열(도면 단위 raw)이다.
+ * buildBasis 가 core 기하(polylineLength/polygonArea)로 둘레/면적을 산출해 살아 있는 fRef 로
+ * 조립하고, 미터 환산은 derivedGeometryValues 가 scale 로 1회 수행한다(web 경계 규칙).
+ *
+ * v1 한계(openIssues): 접촉변 세분(바닥/상단 제외)은 후속 — 전체 둘레를 쓴다.
+ */
+export interface DerivedSource {
+  kind: DerivedSourceKind;
+  /** 기준 콘크리트 항목 TakeoffItem.id (역추적) */
+  baseItemId: string;
+  /** 기준 항목 표시 라벨 (renderText·조립 캐시) */
+  baseLabel: string;
+  /**
+   * 기준 항목의 단면(또는 외곽/바닥) 폴리라인 정점열 — **도면 단위**(raw).
+   * core 기하는 도면 단위 순수값만 다루므로(21-CONVENTIONS §4), 미터 환산은
+   * derivedGeometryValues 가 scale_mPerUnit 로 1회만 수행한다(measure.ts applyScaleToRaw 대칭).
+   *   derived-contact·derived-scaffold: 둘레 산출(polylineLength closed) × scale.
+   *   derived-shore: 바닥 수평 면적 산출(polygonArea closed) × scale².
+   * 조립 시점 캐시 — 기준 도면 편집 시 refresh 된다(recompute).
+   */
+  basePolyline: PVertex[];
+  /** 폴리라인 폐합 여부 (닫힌 단면이면 true — 대개 콘크리트 단면은 폐합) */
+  baseClosed: boolean;
+  /** 캘리브레이션 축척 (1 도면단위 = scale m) — 도면단위 기하 → 미터 환산에 사용 */
+  scale_mPerUnit: number;
+  /** 구간 연장(m) — derived-contact 전용 (거푸집: 둘레 × 연장) */
+  length_m?: number;
+  /** 높이/타설고(m) — derived-scaffold·derived-shore 전용 (사용자 단일 입력) */
+  height_m?: number;
+}
+
+export type TakeoffSource =
+  | MeasurementSource
+  | SegmentVolumeSource
+  | ManualSource
+  | RefSource
+  | DerivedSource;
+
+/** 파생 소스인지 (좁히기 헬퍼) */
+export function isDerivedSource(source: TakeoffSource): source is DerivedSource {
+  return (
+    source.kind === 'derived-contact' ||
+    source.kind === 'derived-scaffold' ||
+    source.kind === 'derived-shore'
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // basis 조립 (순수)
@@ -122,11 +202,59 @@ function buildBaseNode(
       return source.label === undefined ? fConst(source.value) : fConst(source.value, source.label);
     case 'ref':
       return buildRefNode(source);
+    case 'derived-contact':
+    case 'derived-scaffold':
+    case 'derived-shore':
+      return buildDerivedNode(source);
   }
 }
 
 /**
- * 측정 소스 — calcType 이 area-thickness 이고 두께가 있으면 면적×두께, 그 외엔 측정값 그대로.
+ * 파생 소스 → basis (RW-5). 기준 항목의 단면 폴리라인 기하에서 둘레/면적을 산출하고,
+ * 살아 있는 fRef(item:<baseItemId>:perimeter|floor-area) × 연장/높이(fConst)로 조립한다.
+ *
+ * fRef 로 조립하는 이유: 기준 도면 단면이 바뀌면 둘레/면적도 따라가는 살아 있는 수식이
+ * 되도록(하드코딩 숫자 금지, P4-12 규약과 동일). evaluate 는 buildRefResolver 가 basePolyline
+ * 에서 재산출한 둘레/면적으로 연다.
+ *
+ * 기하가 조립 불가(정점 < 2)면 null 을 돌려 산출을 차단한다(둘레 0 을 조용히 만들지 않음).
+ */
+function buildDerivedNode(source: DerivedSource): FormulaNode | null {
+  if (source.kind === 'derived-shore') {
+    // 동바리: 바닥 수평 면적 × 높이. 면적 산출에 정점 2개(bulge 원) 이상 필요.
+    if (source.basePolyline.length < 2) return null;
+    const height = source.height_m;
+    if (height === undefined || !Number.isFinite(height)) return null;
+    const areaRef = fRef(
+      itemGeometryKey(source.baseItemId, 'floor-area'),
+      `${source.baseLabel} 바닥면적(㎡)`,
+    );
+    return derivedShore(areaRef, height);
+  }
+  // 거푸집·비계: 둘레 × (연장 | 높이). 둘레 산출에 정점 2개 이상 필요.
+  if (source.basePolyline.length < 2) return null;
+  const perimRef = fRef(
+    itemGeometryKey(source.baseItemId, 'perimeter'),
+    `${source.baseLabel} 둘레(m)`,
+  );
+  if (source.kind === 'derived-contact') {
+    const length = source.length_m;
+    if (length === undefined || !Number.isFinite(length)) return null;
+    return derivedContact(perimRef, length);
+  }
+  // derived-scaffold
+  const height = source.height_m;
+  if (height === undefined || !Number.isFinite(height)) return null;
+  return derivedScaffold(perimRef, height);
+}
+
+/**
+ * 측정 소스 — area-thickness 규격이면 면적×두께(규격 두께), 그 외엔 측정값 그대로.
+ * (접촉둘레×연장 파생은 derived-* 소스가 담당한다 — RW-5.)
+ *
+ * RW-6: area-thickness 는 두께를 **MaterialSpec.thickness_m 에서** 읽는다(source.thickness_m·
+ * 하드코딩 0.1 폐지). area-thickness 규격인데 spec.thickness_m 이 없으면 null 을 돌려 산출을
+ * 차단한다 — 두께 미상을 조용히 가정하지 않는다.
  *
  * 측정값은 fConst(리터럴)가 아니라 fRef(measurement:<id>:value) 로 조립한다 (P4-12).
  * 그래야 엑셀 수량 셀이 '측정 원장!<셀>' 을 참조하는 살아 있는 수식이 되고, 측정값을
@@ -136,16 +264,15 @@ function buildBaseNode(
 function buildMeasurementNode(
   source: MeasurementSource,
   spec: MaterialSpec | undefined,
-): FormulaNode {
+): FormulaNode | null {
   const measured = fRef(measurementValueKey(source.measurementId), source.label);
   const calcType: CalcType | undefined = spec?.calcType;
-  if (calcType === 'area-thickness' && source.thickness_m !== undefined) {
+  if (calcType === 'area-thickness') {
+    // 두께는 규격에서만 온다(RW-6). 두께 없는 area-thickness 규격은 산출 차단(null).
+    const thickness = spec?.thickness_m;
+    if (thickness === undefined) return null;
     // 면적(측정 셀) × 두께(규격 상수)
-    return fMul(measured, fConst(source.thickness_m, '두께(m)'));
-  }
-  if (calcType === 'contact-length' && source.thickness_m !== undefined) {
-    // 접촉폭(규격 상수) × 연장(측정 셀) — 거푸집·비계 파생 면적
-    return fMul(fConst(source.thickness_m, '접촉폭(m)'), measured);
+    return fMul(measured, fConst(thickness, '두께(m)'));
   }
   return measured;
 }
@@ -209,6 +336,28 @@ function buildRefNode(source: RefSource): FormulaNode {
   const sumNode: FormulaNode = summed ?? fConst(0, '참조 없음');
   if (source.factor === undefined || source.factor === 1) return sumNode;
   return convertUnit(sumNode, source.factor, source.factorLabel ?? '계수');
+}
+
+/**
+ * 파생 소스의 기하 논리 키 → 값 (RW-5) — 기준 항목의 단면 폴리라인에서 둘레/바닥면적 산출.
+ *
+ * evaluate 는 basis 안의 fRef(item:<id>:perimeter|floor-area) 를 이 값으로 연다. resolver 는
+ * 이 map 을 extraValues 로 받아 셀을 해석한다(단일 진실원천 — build 와 evaluate 가 같은 규칙).
+ * 기하 산출은 core(polylineLength/polygonArea)만 쓴다(계수·하드코딩 금지).
+ */
+export function derivedGeometryValues(source: DerivedSource): Map<string, number> {
+  const values = new Map<string, number>();
+  const scale = source.scale_mPerUnit;
+  if (source.kind === 'derived-shore') {
+    // 면적: 도면단위² × scale² (measure.ts area 규칙과 동일).
+    const area_m2 = polygonArea(source.basePolyline, source.baseClosed) * scale * scale;
+    values.set(itemGeometryKey(source.baseItemId, 'floor-area'), area_m2);
+  } else {
+    // derived-contact·derived-scaffold: 둘레(길이) 도면단위 × scale.
+    const perimeter_m = polylineLength(source.basePolyline, source.baseClosed) * scale;
+    values.set(itemGeometryKey(source.baseItemId, 'perimeter'), perimeter_m);
+  }
+  return values;
 }
 
 /**

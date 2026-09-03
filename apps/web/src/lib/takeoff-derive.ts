@@ -9,6 +9,7 @@
  * 순환 참조는 미해결(NaN)로 남겨 조용히 잘못된 값을 만들지 않는다.
  */
 import type {
+  CalcType,
   FormulaNode,
   MaterialSpec,
   Measurement,
@@ -19,7 +20,9 @@ import { measurementValueKey } from '@s-cube/xlsx/cell-map';
 import {
   buildBasis,
   buildRefResolver,
+  derivedGeometryValues,
   evaluateQuantity,
+  isDerivedSource,
   type TakeoffSource,
 } from './takeoff-build.ts';
 
@@ -37,7 +40,12 @@ export interface EditableTakeoffItem {
   /** MaterialSpec.code — 미선택이면 '' */
   specCode: string;
   unit: string;
-  /** 수량 소스 (측정·구간·수동·참조) */
+  /**
+   * 계산 유형 (RW-7) — 규격에서 파생(spec.calcType) 또는 파생 소스에서 결정한 캐시.
+   * 산출서 표시·정합 대조·검증에 쓴다. 미확정이면 undefined.
+   */
+  calcType?: CalcType;
+  /** 수량 소스 (측정·구간·수동·참조·파생) */
   source: TakeoffSource;
   /** 산출근거 트리 — 조립 결과. blocked 면 null */
   basis: FormulaNode | null;
@@ -71,13 +79,15 @@ export function reassembleItem(
 ): EditableTakeoffItem {
   // 측정 소스면 최신 측정값으로, 참조 소스면 최신 항목 수량으로 캐시 갱신.
   const source = refreshSourceCache(draft.source, allItems, measurements);
+  const calcType = resolveCalcType(source, spec);
   const basis = buildBasis(source, spec, sections);
 
   if (basis === null) {
-    // 소스가 blocked (전 결측 구간 등) — 산출 차단.
+    // 소스가 blocked (전 결측 구간·두께 미상 area-thickness 등) — 산출 차단.
     return {
       ...draft,
       source,
+      ...(calcType !== undefined ? { calcType } : {}),
       basis: null,
       quantity: Number.NaN,
       blocked: true,
@@ -88,10 +98,34 @@ export function reassembleItem(
   return {
     ...draft,
     source,
+    ...(calcType !== undefined ? { calcType } : {}),
     basis,
     quantity,
     blocked: false,
   };
+}
+
+/**
+ * 항목 계산 유형 확정 (RW-7) — 규격 우선(spec.calcType), 없으면 파생 소스에서 결정.
+ * 거푸집·비계·동바리 파생은 접촉둘레×연장 계열이므로 taxonomy 상 'contact-length'.
+ */
+function resolveCalcType(
+  source: TakeoffSource,
+  spec: MaterialSpec | undefined,
+): CalcType | undefined {
+  if (spec?.calcType !== undefined) return spec.calcType;
+  switch (source.kind) {
+    case 'derived-contact':
+    case 'derived-scaffold':
+    case 'derived-shore':
+      return 'contact-length';
+    case 'ref':
+      return 'ref';
+    case 'manual':
+      return 'manual';
+    default:
+      return undefined;
+  }
 }
 
 /**
@@ -124,6 +158,13 @@ function refreshSourceCache(
       }),
     };
   }
+  if (isDerivedSource(source)) {
+    // 파생 소스: 기준 항목명(baseLabel) 을 최신 항목명으로 갱신(역추적 라벨 최신화).
+    // basePolyline 은 기준 항목의 단면 기하 캐시 — 기준 도면 편집 재연결은 UI 가 재지정한다.
+    const base = allItems.find((it) => it.id === source.baseItemId);
+    if (base === undefined) return source; // 기준 항목 삭제 등 — 이전 캐시 유지
+    return { ...source, baseLabel: base.name };
+  }
   return source;
 }
 
@@ -147,6 +188,12 @@ function evaluateItemQuantity(
   if (source.kind === 'measurement') {
     // 측정이 원장에 없을 때의 폴백(원장에 있으면 buildRefResolver 가 최신값으로 덮어씀).
     extraValues.set(measurementValueKey(source.measurementId), source.value);
+  }
+  if (isDerivedSource(source)) {
+    // 파생 소스: 기준 단면 폴리라인에서 산출한 둘레/바닥면적을 셀값으로 공급(RW-5).
+    for (const [key, value] of derivedGeometryValues(source)) {
+      extraValues.set(key, value);
+    }
   }
   const resolver = buildRefResolver({ sections, measurements, itemQuantities, extraValues });
   try {
@@ -249,6 +296,7 @@ export function toTakeoffItem(item: EditableTakeoffItem): TakeoffItem | null {
     workType: item.workType,
     specCode: item.specCode !== '' ? item.specCode : item.name,
     unit: item.unit,
+    ...(item.calcType !== undefined ? { calcType: item.calcType } : {}),
     quantity: item.quantity,
     basis: item.basis,
     sourceRefs: item.sourceRefs,

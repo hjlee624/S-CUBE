@@ -42,9 +42,15 @@ export { isSelfIntersecting } from './geometry/validity.ts';
 export {
   applyLoss,
   areaThickness,
+  CALC_BUILDERS,
+  CALC_TYPE_OF,
+  type CalcBuilderName,
   contactLength,
   convertUnit,
   countTimes,
+  derivedContact,
+  derivedScaffold,
+  derivedShore,
   sectionLength,
 } from './quantity/calc.ts';
 export {

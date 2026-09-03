@@ -7,12 +7,31 @@
  * 계산·수식 조립은 lib/takeoff-* 순수 함수(→ core)로만 한다 — UI 는 수식을 쓰지 않는다.
  */
 import { renderText } from '@s-cube/core';
+import type { NEntity, PVertex } from '@s-cube/schema';
 import { useMemo, useState } from 'react';
 import { formatMeasureValue, measurementsForDrawing } from '../lib/measure.ts';
 import { buildSegments, totalVolume } from '../lib/station-derive.ts';
-import { buildBasis, type TakeoffSource } from '../lib/takeoff-build.ts';
+import { buildBasis, type DerivedSourceKind, type TakeoffSource } from '../lib/takeoff-build.ts';
 import type { EditableTakeoffItem, TakeoffDraft } from '../lib/takeoff-derive.ts';
 import { useAppStore } from '../store/index.ts';
+
+/**
+ * 측정 한 건의 근거 엔티티(sourceHandles)에서 단면 폴리라인 정점열을 뽑는다 (RW-5 파생용).
+ * 폴리라인 엔티티만 대상(정점 2개 이상) — 없으면 null. 정점은 도면 단위(raw)다.
+ */
+function polylineFromMeasurement(
+  model: { entities: NEntity[] } | null,
+  handles: readonly string[],
+): { vertices: PVertex[]; closed: boolean } | null {
+  if (model === null) return null;
+  for (const handle of handles) {
+    const entity = model.entities.find((e) => e.handle === handle);
+    if (entity !== undefined && entity.kind === 'polyline' && entity.vertices.length >= 2) {
+      return { vertices: entity.vertices, closed: entity.closed };
+    }
+  }
+  return null;
+}
 
 export function TakeoffEditor() {
   const items = useAppStore((s) => s.items);
@@ -76,6 +95,9 @@ const SOURCE_LABELS: Record<TakeoffSource['kind'], string> = {
   'segment-volume': '구간 체적',
   manual: '수동 입력',
   ref: '항목 참조',
+  'derived-contact': '파생·거푸집',
+  'derived-scaffold': '파생·비계',
+  'derived-shore': '파생·동바리',
 };
 
 /** 산출 항목 한 행 — 산출근거 미리보기 + 차단 표시 */
@@ -149,30 +171,34 @@ function AddItemForm() {
   const [measurementId, setMeasurementId] = useState('');
   const [segmentItemKey, setSegmentItemKey] = useState('');
   const [refItemIds, setRefItemIds] = useState<string[]>([]);
+  // 파생(RW-5): 기준 항목 + 기준 단면 측정(폴리라인 기하) + 높이/연장 1개 입력.
+  const [baseItemId, setBaseItemId] = useState('');
+  const [baseMeasurementId, setBaseMeasurementId] = useState('');
+  const [derivedInput, setDerivedInput] = useState('');
 
   const measurements = useAppStore((s) => s.measurements);
   const activeId = useAppStore((s) => s.activeId);
   const sections = useAppStore((s) => s.sections);
   const itemKeys = useAppStore((s) => s.itemKeys);
   const existingItems = useAppStore((s) => s.items);
+  const model = useAppStore((s) => s.model);
+  const calibration = useAppStore((s) => s.calibration);
 
   const activeMeasurements = useMemo(
     () => measurementsForDrawing(measurements, activeId),
     [measurements, activeId],
   );
 
+  const isDerivedKind = (k: TakeoffSource['kind']): k is DerivedSourceKind =>
+    k === 'derived-contact' || k === 'derived-scaffold' || k === 'derived-shore';
+
   const buildDraftSource = (): TakeoffSource | null => {
     switch (sourceKind) {
       case 'measurement': {
         const m = activeMeasurements.find((x) => x.id === measurementId);
         if (m === undefined) return null;
-        return {
-          kind: 'measurement',
-          measurementId: m.id,
-          value: m.value,
-          label: m.label,
-          ...(selectedSpec?.calcType === 'area-thickness' ? { thickness_m: 0.1 } : {}),
-        };
+        // RW-6: area-thickness 두께는 규격(spec.thickness_m)에서만 온다 — 여기서 손입력·하드코딩 없음.
+        return { kind: 'measurement', measurementId: m.id, value: m.value, label: m.label };
       }
       case 'segment-volume': {
         if (segmentItemKey === '') return null;
@@ -194,6 +220,28 @@ function AddItemForm() {
           }),
         };
       }
+      case 'derived-contact':
+      case 'derived-scaffold':
+      case 'derived-shore': {
+        // 기준 항목 + 기준 단면 측정(폴리라인) + 높이/연장 1개. 계수 손입력 없음.
+        const base = existingItems.find((x) => x.id === baseItemId);
+        if (base === undefined || calibration === null) return null;
+        const geom = polylineFromMeasurement(model, [baseMeasurementId]);
+        if (geom === null) return null;
+        const input = Number(derivedInput);
+        if (!Number.isFinite(input) || input <= 0) return null;
+        const common = {
+          kind: sourceKind,
+          baseItemId: base.id,
+          baseLabel: base.name,
+          basePolyline: geom.vertices,
+          baseClosed: geom.closed,
+          scale_mPerUnit: calibration.scale,
+        } as const;
+        return sourceKind === 'derived-contact'
+          ? { ...common, length_m: input }
+          : { ...common, height_m: input };
+      }
     }
   };
 
@@ -206,10 +254,13 @@ function AddItemForm() {
     const name = selectedSpec?.name ?? '항목';
     const workType = selectedSpec?.workType ?? '기타';
     const unit = selectedSpec?.unit ?? 'EA';
+    // 역추적 sourceRefs — 측정 소스는 활성 도면, 파생 소스는 기준 단면 측정의 도면·handle.
     const sourceRefs =
       source.kind === 'measurement' && activeId !== null
         ? [{ drawingId: activeId, handles: [] }]
-        : [];
+        : isDerivedKind(source.kind) && activeId !== null
+          ? [{ drawingId: activeId, handles: [baseMeasurementId] }]
+          : [];
     const draft: TakeoffDraft = {
       id: crypto.randomUUID(),
       workType,
@@ -224,6 +275,7 @@ function AddItemForm() {
     // 소스 입력 초기화 (규격 선택은 연속 추가 위해 유지)
     setManualValue('');
     setMeasurementId('');
+    setDerivedInput('');
   };
 
   return (
@@ -253,6 +305,9 @@ function AddItemForm() {
           <option value="segment-volume">구간 체적</option>
           <option value="manual">수동 입력</option>
           <option value="ref">항목 참조</option>
+          <option value="derived-contact">파생·거푸집(둘레×연장)</option>
+          <option value="derived-scaffold">파생·비계(둘레×높이)</option>
+          <option value="derived-shore">파생·동바리(면적×높이)</option>
         </select>
 
         {/* 소스별 입력 */}
@@ -301,6 +356,48 @@ function AddItemForm() {
               </option>
             ))}
           </select>
+        )}
+        {isDerivedKind(sourceKind) && (
+          <>
+            {/* 기준 콘크리트 항목 선택 */}
+            <select
+              value={baseItemId}
+              onChange={(e) => setBaseItemId(e.target.value)}
+              title="기준 콘크리트 항목"
+              className="min-w-[140px] rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-zinc-200 outline-none focus:border-emerald-700"
+            >
+              <option value="">기준 항목 선택</option>
+              {existingItems.map((it) => (
+                <option key={it.id} value={it.id}>
+                  {it.name} ({it.quantity.toFixed(2)})
+                </option>
+              ))}
+            </select>
+            {/* 기준 단면 폴리라인 측정 선택 (둘레/면적 기하 출처) */}
+            <select
+              value={baseMeasurementId}
+              onChange={(e) => setBaseMeasurementId(e.target.value)}
+              title="기준 단면(폴리라인) 측정 — 둘레/면적 기하 출처"
+              className="min-w-[150px] rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-zinc-200 outline-none focus:border-emerald-700"
+            >
+              <option value="">단면 폴리라인 선택</option>
+              {activeMeasurements.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label} — {formatMeasureValue(m.value, m.kind)}
+                </option>
+              ))}
+            </select>
+            {/* 높이/연장 1개 입력 (계수 손입력 없음) */}
+            <input
+              type="number"
+              step="any"
+              min="0"
+              value={derivedInput}
+              onChange={(e) => setDerivedInput(e.target.value)}
+              placeholder={sourceKind === 'derived-contact' ? '연장(m)' : '높이/타설고(m)'}
+              className="w-28 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-right tabular-nums text-zinc-200 outline-none focus:border-emerald-700"
+            />
+          </>
         )}
 
         <button

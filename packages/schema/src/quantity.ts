@@ -88,6 +88,12 @@ export const MaterialSpecSchema = z.object({
   lossRate: z.number().min(0).optional(),
   /** 정척 길이 (m → 본 환산) */
   standardLength_m: z.number().positive().optional(),
+  /**
+   * 대표 두께 (m) — area-thickness(면적×두께) 산출의 두께 소스 (RW-6).
+   * 계수 손입력·하드코딩(0.1 등)을 폐지하고 여기서 읽는다. 표토제거 0.2·쇄석포설 0.15 등.
+   * area-thickness 규격에 이 값이 없으면 산출을 차단한다(두께 미상은 조용히 가정하지 않음).
+   */
+  thickness_m: z.number().positive().optional(),
 });
 
 export type MaterialSpec = z.infer<typeof MaterialSpecSchema>;
@@ -100,6 +106,11 @@ export const TakeoffItemSchema = z.object({
   /** MaterialSpec.code */
   specCode: z.string().min(1),
   unit: z.string().min(1),
+  /**
+   * 계산 유형 (RW-7) — 규격에서 파생되는 것이 정석이나, 항목 자체 계산 방식을 가시화·
+   * 검증하기 위해 캐시로 얹는다(옵션 — 기존 항목 호환). 산출서 표시·정합 대조에 쓴다.
+   */
+  calcType: CalcTypeSchema.optional(),
   /** 계산 결과 (캐시) — 내부 계산은 반올림하지 않는다 */
   quantity: z.number(),
   /** 산출근거 트리 */

@@ -82,6 +82,22 @@ describe('MaterialSpecSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('thickness_m (RW-6) — 양수 통과·0/음수 거부', () => {
+    const base = {
+      code: 'AT',
+      workType: '토공사',
+      name: '쇄석포설',
+      spec: 't=150mm',
+      unit: '㎥',
+      calcType: 'area-thickness',
+    };
+    expect(MaterialSpecSchema.parse({ ...base, thickness_m: 0.15 }).thickness_m).toBe(0.15);
+    expect(MaterialSpecSchema.safeParse({ ...base, thickness_m: 0 }).success).toBe(false);
+    expect(MaterialSpecSchema.safeParse({ ...base, thickness_m: -0.1 }).success).toBe(false);
+    // 옵션 — 없어도 스키마는 통과(차단은 산출 계층 책임).
+    expect(MaterialSpecSchema.safeParse(base).success).toBe(true);
+  });
 });
 
 describe('TakeoffItemSchema', () => {
@@ -101,6 +117,25 @@ describe('TakeoffItemSchema', () => {
       sourceRefs: [{ drawingId: 'dwg-1', handles: ['1A2B'] }],
     };
     expect(TakeoffItemSchema.parse(item)).toEqual(item);
+  });
+
+  it('calcType (RW-7) — 옵션 필드 통과·유효 유형만 허용', () => {
+    const item = {
+      id: 'ti-2',
+      workType: '현장타설 콘크리트 공사',
+      specCode: 'CONC-REINF-PUMP',
+      unit: '㎥',
+      calcType: 'section-length',
+      quantity: 300,
+      basis: { op: 'const', value: 300 },
+      sourceRefs: [],
+    };
+    expect(TakeoffItemSchema.parse(item).calcType).toBe('section-length');
+    // 잘못된 calcType 거부.
+    expect(TakeoffItemSchema.safeParse({ ...item, calcType: 'volume' }).success).toBe(false);
+    // 옵션 — 없어도 통과(기존 항목 호환).
+    const { calcType: _omit, ...noCalc } = item;
+    expect(TakeoffItemSchema.safeParse(noCalc).success).toBe(true);
   });
 });
 

@@ -145,6 +145,109 @@ describe('recomputeItems — 의존 그래프 (P4-10)', () => {
   });
 });
 
+describe('파생 소스 (RW-5) — 재조립·재계산', () => {
+  /** 한 변 5 정사각형 (닫힘) — 둘레 20, 면적 25 (scale=1) */
+  const square = [
+    { p: { x: 0, y: 0 }, bulge: 0 },
+    { p: { x: 5, y: 0 }, bulge: 0 },
+    { p: { x: 5, y: 5 }, bulge: 0 },
+    { p: { x: 0, y: 5 }, bulge: 0 },
+  ];
+
+  function concreteBase(id: string, name: string): EditableTakeoffItem {
+    return reassembleItem(
+      { ...draft(id, { kind: 'manual', value: 30 }, name), specCode: '', unit: '㎥' },
+      undefined,
+      [],
+      [],
+    );
+  }
+
+  it('derived-contact 항목 quantity = 둘레×연장, calcType=contact-length', () => {
+    const base = concreteBase('conc', '옹벽 콘크리트');
+    const form = reassembleItem(
+      {
+        ...draft('form', {
+          kind: 'derived-contact',
+          baseItemId: 'conc',
+          baseLabel: '옹벽 콘크리트',
+          basePolyline: square,
+          baseClosed: true,
+          scale_mPerUnit: 1,
+          length_m: 12,
+        }),
+        unit: '㎡',
+        name: '거푸집',
+      },
+      undefined,
+      [],
+      [base],
+    );
+    // 둘레 20 × 연장 12 = 240㎡.
+    expect(form.quantity).toBeCloseTo(240, 9);
+    expect(form.blocked).toBe(false);
+    expect(form.calcType).toBe('contact-length');
+    expect(form.basis).not.toBeNull();
+  });
+
+  it('recomputeItems — 기준 항목명 변경이 파생 baseLabel 로 전파된다', () => {
+    const base: EditableTakeoffItem = concreteBase('conc', '옹벽 콘크리트');
+    const shore: EditableTakeoffItem = reassembleItem(
+      {
+        ...draft('shore', {
+          kind: 'derived-shore',
+          baseItemId: 'conc',
+          baseLabel: '옛이름',
+          basePolyline: square,
+          baseClosed: true,
+          scale_mPerUnit: 1,
+          height_m: 4,
+        }),
+        unit: '공㎥',
+        name: '동바리',
+      },
+      undefined,
+      [],
+      [base],
+    );
+    // 면적 25 × 높이 4 = 100 공㎥.
+    expect(shore.quantity).toBeCloseTo(100, 9);
+
+    const recomputed = recomputeItems([{ ...base, name: '새 옹벽' }, shore], [], []);
+    const derived = recomputed.find((it) => it.id === 'shore');
+    expect(derived?.source.kind).toBe('derived-shore');
+    if (derived?.source.kind === 'derived-shore') {
+      expect(derived.source.baseLabel).toBe('새 옹벽'); // 최신 기준 항목명 반영
+    }
+    expect(derived?.quantity).toBeCloseTo(100, 9); // 기하 캐시 유지 → 값 불변
+  });
+
+  it('입력 없는 파생은 blocked (산출 차단)', () => {
+    const base = concreteBase('conc', '옹벽');
+    const noInput = reassembleItem(
+      {
+        ...draft('scaf', {
+          kind: 'derived-scaffold',
+          baseItemId: 'conc',
+          baseLabel: '옹벽',
+          basePolyline: square,
+          baseClosed: true,
+          scale_mPerUnit: 1,
+          // height_m 없음.
+        }),
+        unit: '㎡',
+        name: '비계',
+      },
+      undefined,
+      [],
+      [base],
+    );
+    expect(noInput.blocked).toBe(true);
+    expect(noInput.basis).toBeNull();
+    expect(Number.isNaN(noInput.quantity)).toBe(true);
+  });
+});
+
 describe('toTakeoffItem / restoreEditableItems 왕복', () => {
   it('정상 항목은 schema TakeoffItem 로 좁혀지고 복원된다', () => {
     const specs: MaterialSpec[] = [

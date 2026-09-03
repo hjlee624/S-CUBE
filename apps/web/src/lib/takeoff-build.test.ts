@@ -7,14 +7,33 @@
  * P4-12 이후 측정·구간 basis 는 fConst 리터럴이 아니라 셀 참조(fRef) 트리이므로,
  * 평가는 evaluatePlain(basis, {sections, measurements}) resolver 경로로 한다.
  */
-import type { MaterialSpec, Measurement, Station, StationSection } from '@s-cube/schema';
+import type {
+  FormulaNode,
+  MaterialSpec,
+  Measurement,
+  PVertex,
+  Station,
+  StationSection,
+} from '@s-cube/schema';
 import { describe, expect, it } from 'vitest';
 import {
   buildBasis,
+  type DerivedSource,
+  derivedGeometryValues,
   evaluatePlain,
+  evaluateQuantity,
   type MeasurementSource,
   type SegmentVolumeSource,
 } from './takeoff-build.ts';
+
+/** 파생 basis 를 기하값 map 으로 평가 — 미등록 키는 에러(조용히 0 금지) */
+function evaluatePlainWithGeom(basis: FormulaNode, geom: Map<string, number>): number {
+  return evaluateQuantity(basis, (cell: string): number => {
+    const v = geom.get(cell);
+    if (v === undefined) throw new Error(`미등록 셀: ${cell}`);
+    return v;
+  });
+}
 
 function station(
   raw: string,
@@ -59,7 +78,7 @@ describe('buildBasis — 측정 소스', () => {
     expect(evaluatePlain(basis, { sections: [], measurements: [meas('m1', 12.5)] })).toBe(12.5);
   });
 
-  it('area-thickness 규격이면 면적×두께', () => {
+  it('area-thickness 규격이면 면적×두께 — 두께는 spec.thickness_m 에서 (RW-6)', () => {
     const spec: MaterialSpec = {
       code: 'SC-1',
       workType: '포장공',
@@ -67,13 +86,13 @@ describe('buildBasis — 측정 소스', () => {
       spec: 't=0.2',
       unit: '㎥',
       calcType: 'area-thickness',
+      thickness_m: 0.2, // RW-6: 두께는 규격에서 (source.thickness_m·하드코딩 폐지)
     };
     const source: MeasurementSource = {
       kind: 'measurement',
       measurementId: 'm1',
       value: 100,
       label: '포장면',
-      thickness_m: 0.2,
     };
     const basis = buildBasis(source, spec, []);
     expect(basis).not.toBeNull();
@@ -82,6 +101,25 @@ describe('buildBasis — 측정 소스', () => {
     expect(
       evaluatePlain(basis, { sections: [], measurements: [meas('m1', 100, 'area')] }),
     ).toBeCloseTo(20, 10);
+  });
+
+  it('area-thickness 인데 spec.thickness_m 없으면 산출 차단(null) (RW-6)', () => {
+    const spec: MaterialSpec = {
+      code: 'SC-NO-T',
+      workType: '포장공',
+      name: '쇄석포설(두께 미상)',
+      spec: 't=?',
+      unit: '㎥',
+      calcType: 'area-thickness',
+      // thickness_m 없음 → 두께 미상은 조용히 가정하지 않고 차단.
+    };
+    const source: MeasurementSource = {
+      kind: 'measurement',
+      measurementId: 'm1',
+      value: 100,
+      label: '포장면',
+    };
+    expect(buildBasis(source, spec, [])).toBeNull();
   });
 });
 
@@ -167,5 +205,118 @@ describe('buildBasis — 규격 환산·할증 체이닝', () => {
     expect(basis).not.toBeNull();
     if (basis === null) return;
     expect(evaluatePlain(basis, { sections: [], measurements: [meas('m1', 42)] })).toBe(42);
+  });
+});
+
+describe('buildBasis — 파생 소스 (RW-5)', () => {
+  /** 한 변 5(도면단위) 정사각형 폴리라인 (닫힘) — 둘레 20, 면적 25 */
+  const square: PVertex[] = [
+    { p: { x: 0, y: 0 }, bulge: 0 },
+    { p: { x: 5, y: 0 }, bulge: 0 },
+    { p: { x: 5, y: 5 }, bulge: 0 },
+    { p: { x: 0, y: 5 }, bulge: 0 },
+  ];
+
+  /** 파생 basis 를 기하값 map 으로 평가 (evaluate 는 core; 여기선 resolver 를 map 으로 구성) */
+  function evalDerived(source: DerivedSource): number {
+    const basis = buildBasis(source, undefined, []);
+    expect(basis).not.toBeNull();
+    if (basis === null) return Number.NaN;
+    const geom = derivedGeometryValues(source);
+    return evaluatePlainWithGeom(basis, geom);
+  }
+
+  it('derived-contact(거푸집) = 둘레 × 연장 — 둘레 20m × 연장 12m = 240㎡', () => {
+    const source: DerivedSource = {
+      kind: 'derived-contact',
+      baseItemId: 'conc-1',
+      baseLabel: '옹벽 콘크리트',
+      basePolyline: square,
+      baseClosed: true,
+      scale_mPerUnit: 1,
+      length_m: 12,
+    };
+    // 둘레 = polylineLength(square, closed) = 20, × 12 = 240.
+    expect(derivedGeometryValues(source).get('item:conc-1:perimeter')).toBeCloseTo(20, 9);
+    expect(evalDerived(source)).toBeCloseTo(240, 9);
+  });
+
+  it('derived-scaffold(비계) = 외곽 둘레 × 높이 — 20m × 3.5m = 70㎡', () => {
+    const source: DerivedSource = {
+      kind: 'derived-scaffold',
+      baseItemId: 'conc-1',
+      baseLabel: '옹벽 콘크리트',
+      basePolyline: square,
+      baseClosed: true,
+      scale_mPerUnit: 1,
+      height_m: 3.5,
+    };
+    expect(evalDerived(source)).toBeCloseTo(70, 9);
+  });
+
+  it('derived-shore(동바리) = 바닥 면적 × 높이 — 25㎡ × 4m = 100 공㎥', () => {
+    const source: DerivedSource = {
+      kind: 'derived-shore',
+      baseItemId: 'conc-1',
+      baseLabel: '옹벽 콘크리트',
+      basePolyline: square,
+      baseClosed: true,
+      scale_mPerUnit: 1,
+      height_m: 4,
+    };
+    // 면적 = polygonArea(square, closed) = 25, × 4 = 100.
+    expect(derivedGeometryValues(source).get('item:conc-1:floor-area')).toBeCloseTo(25, 9);
+    expect(evalDerived(source)).toBeCloseTo(100, 9);
+  });
+
+  it('축척 반영 — scale=0.5 이면 둘레 ×0.5, 면적 ×0.25', () => {
+    const contact: DerivedSource = {
+      kind: 'derived-contact',
+      baseItemId: 'c',
+      baseLabel: 'x',
+      basePolyline: square,
+      baseClosed: true,
+      scale_mPerUnit: 0.5,
+      length_m: 10,
+    };
+    // 둘레 20 도면단위 × 0.5 = 10m, × 10 = 100㎡.
+    expect(derivedGeometryValues(contact).get('item:c:perimeter')).toBeCloseTo(10, 9);
+    const shore: DerivedSource = {
+      kind: 'derived-shore',
+      baseItemId: 'c',
+      baseLabel: 'x',
+      basePolyline: square,
+      baseClosed: true,
+      scale_mPerUnit: 0.5,
+      height_m: 2,
+    };
+    // 면적 25 도면단위² × 0.25 = 6.25㎡, × 2 = 12.5 공㎥.
+    expect(derivedGeometryValues(shore).get('item:c:floor-area')).toBeCloseTo(6.25, 9);
+  });
+
+  it('입력(높이/연장) 없으면 산출 차단(null)', () => {
+    const noInput: DerivedSource = {
+      kind: 'derived-scaffold',
+      baseItemId: 'c',
+      baseLabel: 'x',
+      basePolyline: square,
+      baseClosed: true,
+      scale_mPerUnit: 1,
+      // height_m 없음.
+    };
+    expect(buildBasis(noInput, undefined, [])).toBeNull();
+  });
+
+  it('폴리라인 정점 부족(<2)이면 산출 차단(null)', () => {
+    const degenerate: DerivedSource = {
+      kind: 'derived-contact',
+      baseItemId: 'c',
+      baseLabel: 'x',
+      basePolyline: [{ p: { x: 0, y: 0 }, bulge: 0 }],
+      baseClosed: true,
+      scale_mPerUnit: 1,
+      length_m: 5,
+    };
+    expect(buildBasis(degenerate, undefined, [])).toBeNull();
   });
 });

@@ -110,6 +110,7 @@ export const MATERIAL_PRESETS: readonly MaterialSpec[] = [
     spec: 'T=20cm',
     unit: '㎡',
     calcType: 'area',
+    thickness_m: 0.2, // T=20cm — 발주단위 ㎡, 사토량 환산에 두께 사용
     conversions: [{ toUnit: '㎥', factor: 0.2, note: 'T=20cm 사토량 환산' }],
   },
   {
@@ -160,6 +161,7 @@ export const MATERIAL_PRESETS: readonly MaterialSpec[] = [
     spec: 't=150mm',
     unit: '㎥',
     calcType: 'area-thickness',
+    thickness_m: 0.15, // t=150mm (RW-6 규격 두께)
   },
   // ── 토공사: 비탈면 (area) ──
   {
@@ -252,14 +254,16 @@ export const MATERIAL_PRESETS: readonly MaterialSpec[] = [
     spec: '소형장비, 일반포장 (T=20cm)',
     unit: '㎥',
     calcType: 'area-thickness',
+    thickness_m: 0.2, // T=20cm — BOQ 실수식 =758.5*0.2 (RW-6 규격 두께)
   },
   {
     code: 'PAVE-SUBBASE',
     workType: '도로 및 포장공사',
     name: '보조기층 포설 및 다짐',
-    spec: '본선 포설',
+    spec: '본선 포설 (T=20cm)',
     unit: '㎥',
     calcType: 'area-thickness',
+    thickness_m: 0.2, // 보조기층 대표 두께 T=20cm (RW-6)
   },
   {
     code: 'PAVE-ASPHALT-SURFACE',
@@ -268,6 +272,7 @@ export const MATERIAL_PRESETS: readonly MaterialSpec[] = [
     spec: 'T=5cm',
     unit: '㎡',
     calcType: 'area',
+    thickness_m: 0.05, // T=5cm — 발주단위 ㎡, 두께는 참고·환산용
   },
   // ── 거푸집 (contact-length) — 높이 구간별 분리 ──
   {

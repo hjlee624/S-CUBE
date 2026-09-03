@@ -77,6 +77,19 @@ describe('MATERIAL_PRESETS — 사연댐 BOQ 프리셋', () => {
   it('정척 — 파형강관 6m (m → 본)', () => {
     expect(mustFind('PIPE-CORR-D600').standardLength_m).toBe(6);
   });
+
+  it('두께 규격연동 (RW-6) — area-thickness 프리셋에 thickness_m 존재', () => {
+    // area-thickness 는 두께를 규격에서 읽는다 → thickness_m 이 반드시 있어야 함(하드코딩 폐지).
+    for (const p of MATERIAL_PRESETS) {
+      if (p.calcType === 'area-thickness') {
+        expect(p.thickness_m, `${p.code}: area-thickness 인데 thickness_m 누락`).toBeGreaterThan(0);
+      }
+    }
+    // 대표 두께 값 확인 — 쇄석포설 0.15, 콘크리트 표층 0.2, 표토제거 0.2.
+    expect(mustFind('EARTH-CRUSHED-SPREAD').thickness_m).toBe(0.15);
+    expect(mustFind('PAVE-CONC-SURFACE').thickness_m).toBe(0.2);
+    expect(mustFind('EARTH-STRIP-TOPSOIL').thickness_m).toBe(0.2);
+  });
 });
 
 describe('프리셋 계산 시나리오', () => {

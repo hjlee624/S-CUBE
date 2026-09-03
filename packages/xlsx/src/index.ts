@@ -9,6 +9,7 @@
 export {
   CellMap,
   columnLetter,
+  itemGeometryKey,
   itemQuantityKey,
   measurementValueKey,
   sectionAreaKey,
