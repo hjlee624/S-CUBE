@@ -38,6 +38,15 @@ export {
 export { bulgeToArc, distance, polylineLength } from './geometry/primitives.ts';
 export { areaBetweenProfiles, type ProfileAreaResult } from './geometry/profile-area.ts';
 export { isSelfIntersecting } from './geometry/validity.ts';
+export {
+  autoCloseEntities,
+  buildSnapGraph,
+  findClosedFaces,
+  type ClosedFace,
+  type SnapEdge,
+  type SnapGraph,
+  type SnapNode,
+} from './geometry/auto-close.ts';
 // quantity/
 export {
   applyLoss,

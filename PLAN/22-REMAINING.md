@@ -28,8 +28,7 @@
 - [x] **RW-3** 교차점 스냅 (P1-10/P2-15) — `20ee492`
   - `snap.ts` SnapKind='intersection', rank(1), `intersection.ts` line/arc 교점
   - 우선순위: endpoint > intersection > midpoint > center
-- [ ] **RW-4** 제목 TEXT 측점 자동 인식 (P3-5) — 2클릭+측점 자동의 마지막 고리
-  - 프레임 근접 TEXT → `parseStation` → 활성 측점 자동 배정(사용자 확인식), 실패 시 번호만 폴백
+- [x] **RW-4** 제목 TEXT 측점 자동 인식 (P3-5) — `StationTable.tsx` stationSuggestions: TEXT 엔티티 → parseStation → 칩 제안 UI
 
 ### P1 — 파생 수량 반자동 + 검증 게이트 ✅ 완료 (wave2)
 옹벽 1기에서 콘크리트만 넣으면 거푸집·비계·동바리가 자동 전개되게 한다.
@@ -48,8 +47,8 @@
 ### P2 — 객체 기반 일괄·자동 폐합 (클릭 수 대폭 절감)
 레이어에 의존하지 않는 축으로 일괄화한다.
 
-- [ ] **RW-10** 프로토타입 선행 — `docs/experiments/`에 face 탐색 vs flood-fill 타당성 검증
-- [ ] **RW-11** 자동 폐합 탐색 (P5-1 + P5-3) — tolerance snap 선분그래프, 최소 폐합 face
+- [x] **RW-10** 프로토타입 선행 — `docs/experiments/20260904-auto-boundary.md` (face 탐색 vs flood-fill → 위상그래프 채택)
+- [x] **RW-11** 자동 폐합 탐색 (P5-1 + P5-3) — `packages/core/src/geometry/auto-close.ts`: buildSnapGraph/findClosedFaces/autoCloseEntities, 750 tests ✅
 - [ ] **RW-12** 객체 기반 후보 그룹핑 (P5-7c/7d) — 기하·색상·선형 유사도 군집→사용자 승인,
   다수 단면 제목/프레임 인식→원지반/계획선 쌍 일괄 후보
 - [x] **RW-13** 블록/심볼 자동 카운트 (P5-17/18) — count 유형 자동화(배수·앵커·다웰),
