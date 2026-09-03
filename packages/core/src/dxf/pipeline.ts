@@ -11,7 +11,7 @@ import { entityBounds, mergeBounds } from '../geometry/bounds.ts';
 import { expandAndNormalize } from './expand.ts';
 import { parseDxfRaw } from './parse.ts';
 import { parseHatchEntities } from './parse-hatch.ts';
-import type { RawDxf } from './raw-types.ts';
+import type { RawDxf, RawEntityBase, RawInsertEntity } from './raw-types.ts';
 import { sanitizeEntities } from './sanitize.ts';
 import { scanParserDroppedTypes } from './scan-unsupported.ts';
 
@@ -56,6 +56,31 @@ function buildLayers(raw: RawDxf, entities: readonly NEntity[]): Layer[] {
 }
 
 /**
+ * RW-13: 최상위 모델 공간 INSERT 를 블록명별로 집계한다.
+ * 익명 블록(*D·*U 등)·빈 이름은 제외한다. 핸들은 역추적 근거.
+ */
+function collectBlockInsertCounts(
+  rawEntities: readonly RawEntityBase[],
+): Record<string, { count: number; handles: string[] }> {
+  const counts: Record<string, { count: number; handles: string[] }> = {};
+  for (const e of rawEntities) {
+    if (e.type !== 'INSERT') continue;
+    const ins = e as RawInsertEntity;
+    const name = typeof ins.name === 'string' ? ins.name.trim() : '';
+    if (name === '' || name.startsWith('*')) continue;
+    const handle = ins.handle !== undefined ? String(ins.handle) : '';
+    const entry = counts[name];
+    if (entry === undefined) {
+      counts[name] = { count: 1, handles: handle !== '' ? [handle] : [] };
+    } else {
+      entry.count += 1;
+      if (handle !== '') entry.handles.push(handle);
+    }
+  }
+  return counts;
+}
+
+/**
  * DXF 텍스트 전체 파이프라인 — 파싱·정규화·블록 전개·헤더/레이어/경계 집계.
  * 실패 시 한국어 메시지의 Error를 던진다.
  */
@@ -69,6 +94,9 @@ export function parseAndNormalizeDxf(text: string): DrawingModel {
   const modelEntities = allRawEntities.filter((e) => e.inPaperSpace !== true);
   const rawPaperSpaceExcluded = allRawEntities.length - modelEntities.length;
   const blocks = raw.blocks ?? {};
+
+  // RW-13: INSERT 카운트는 expandAndNormalize 전에 수집한다(전개 후엔 INSERT가 사라짐).
+  const blockInsertCounts = collectBlockInsertCounts(modelEntities);
 
   // RW-2: HATCH는 dxf-parser가 버리므로 원문 DXF에서 경계 loop를 직접 파싱한다.
   // 실도면에서 HATCH는 대부분 블록 정의(BLOCKS) 안에 있고 ENTITIES의 INSERT로 배치되므로,
@@ -109,5 +137,6 @@ export function parseAndNormalizeDxf(text: string): DrawingModel {
     sanitizedCount,
     paperSpaceExcludedCount,
     bounds: mergeBounds(entities.map(entityBounds)),
+    blockInsertCounts,
   };
 }

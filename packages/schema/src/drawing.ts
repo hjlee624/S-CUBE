@@ -35,4 +35,11 @@ export interface DrawingModel {
   paperSpaceExcludedCount: number;
   /** 전체 엔티티 경계 (Zoom Extents 용). 엔티티 없으면 null */
   bounds: Bounds | null;
+  /**
+   * 블록/심볼 삽입(INSERT) 카운트 — 블록명별 삽입 횟수·핸들 목록 (RW-13).
+   * 배수구·앵커·다웰 등 반복 심볼을 자동 계수해 count 유형 수량 산출에 쓴다.
+   * 핸들 목록은 역추적 근거(어떤 심볼을 셌는가)를 보존한다.
+   * 익명 블록(*D·*U 등) 및 치수 블록은 제외한다.
+   */
+  blockInsertCounts: Record<string, { count: number; handles: string[] }>;
 }

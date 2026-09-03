@@ -194,6 +194,16 @@ describe('parseAndNormalizeDxf — synthetic-blocks.dxf (2단 중첩 INSERT)', (
     expect(model.bounds?.maxX).toBeCloseTo(120, 9);
     expect(model.bounds?.maxY).toBeCloseTo(120, 9);
   });
+
+  it('blockInsertCounts — 모델 공간 PAIR INSERT 2건 집계 (RW-13)', () => {
+    // ENTITIES 섹션의 PAIR INSERT 2건만 집계; BLOCKS 내 UNIT INSERT는 제외
+    const pair = model.blockInsertCounts['PAIR'];
+    expect(pair).toBeDefined();
+    expect(pair?.count).toBe(2);
+    expect(pair?.handles).toEqual(['I3', 'I4']);
+    // UNIT은 블록 정의(BLOCKS 섹션) 안에 있어 모델 공간 직접 INSERT가 아님
+    expect(model.blockInsertCounts['UNIT']).toBeUndefined();
+  });
 });
 
 describe('parseAndNormalizeDxf — synthetic-units-mm.dxf', () => {

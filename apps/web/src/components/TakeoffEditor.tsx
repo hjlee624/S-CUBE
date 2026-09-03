@@ -98,6 +98,7 @@ const SOURCE_LABELS: Record<TakeoffSource['kind'], string> = {
   'derived-contact': '파생·거푸집',
   'derived-scaffold': '파생·비계',
   'derived-shore': '파생·동바리',
+  count: '블록 카운트',
 };
 
 /** 산출 항목 한 행 — 산출근거 미리보기 + 차단 표시 */
@@ -175,6 +176,7 @@ function AddItemForm() {
   const [baseItemId, setBaseItemId] = useState('');
   const [baseMeasurementId, setBaseMeasurementId] = useState('');
   const [derivedInput, setDerivedInput] = useState('');
+  const [blockName, setBlockName] = useState('');
 
   const measurements = useAppStore((s) => s.measurements);
   const activeId = useAppStore((s) => s.activeId);
@@ -183,6 +185,13 @@ function AddItemForm() {
   const existingItems = useAppStore((s) => s.items);
   const model = useAppStore((s) => s.model);
   const calibration = useAppStore((s) => s.calibration);
+  const drawings = useAppStore((s) => s.drawings);
+
+  // RW-13: 활성 도면의 블록 카운트 목록 (INSERT 자동 집계)
+  const blockInsertCounts = useMemo(() => {
+    const active = drawings.find((d) => d.id === activeId);
+    return active?.model.blockInsertCounts ?? {};
+  }, [drawings, activeId]);
 
   const activeMeasurements = useMemo(
     () => measurementsForDrawing(measurements, activeId),
@@ -219,6 +228,11 @@ function AddItemForm() {
             return { itemId: id, label: t?.name ?? id, quantity: t?.quantity ?? 0 };
           }),
         };
+      }
+      case 'count': {
+        const entry = blockInsertCounts[blockName];
+        if (entry === undefined || blockName === '') return null;
+        return { kind: 'count', blockName, count: entry.count, handles: entry.handles };
       }
       case 'derived-contact':
       case 'derived-scaffold':
@@ -260,7 +274,9 @@ function AddItemForm() {
         ? [{ drawingId: activeId, handles: [] }]
         : isDerivedKind(source.kind) && activeId !== null
           ? [{ drawingId: activeId, handles: [baseMeasurementId] }]
-          : [];
+          : source.kind === 'count' && activeId !== null
+            ? [{ drawingId: activeId, handles: source.handles }]
+            : [];
     const draft: TakeoffDraft = {
       id: crypto.randomUUID(),
       workType,
@@ -308,6 +324,7 @@ function AddItemForm() {
           <option value="derived-contact">파생·거푸집(둘레×연장)</option>
           <option value="derived-scaffold">파생·비계(둘레×높이)</option>
           <option value="derived-shore">파생·동바리(면적×높이)</option>
+          <option value="count">블록/심볼 카운트</option>
         </select>
 
         {/* 소스별 입력 */}
@@ -356,6 +373,28 @@ function AddItemForm() {
               </option>
             ))}
           </select>
+        )}
+        {sourceKind === 'count' && (
+          <>
+            <select
+              value={blockName}
+              onChange={(e) => setBlockName(e.target.value)}
+              title="도면에서 자동 계수된 블록/심볼 선택"
+              className="min-w-[160px] rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-zinc-200 outline-none focus:border-emerald-700"
+            >
+              <option value="">블록 선택 (활성 도면)</option>
+              {Object.entries(blockInsertCounts).map(([name, entry]) => (
+                <option key={name} value={name}>
+                  {name} — {entry.count}개
+                </option>
+              ))}
+            </select>
+            {blockName !== '' && blockInsertCounts[blockName] !== undefined && (
+              <span className="tabular-nums text-emerald-300">
+                {blockInsertCounts[blockName]?.count}개 (핸들 {blockInsertCounts[blockName]?.handles.length}건)
+              </span>
+            )}
+          </>
         )}
         {isDerivedKind(sourceKind) && (
           <>

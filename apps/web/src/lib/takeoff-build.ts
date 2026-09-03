@@ -13,6 +13,7 @@ import {
   applyLoss,
   buildSegments,
   convertUnit,
+  countTimes,
   derivedContact,
   derivedScaffold,
   derivedShore,
@@ -57,6 +58,7 @@ export const TAKEOFF_SOURCE_KINDS = [
   'derived-contact',
   'derived-scaffold',
   'derived-shore',
+  'count',
 ] as const;
 
 export type TakeoffSourceKind = (typeof TAKEOFF_SOURCE_KINDS)[number];
@@ -149,12 +151,24 @@ export interface DerivedSource {
   height_m?: number;
 }
 
+/** 블록/심볼 카운트 소스 — 도면 INSERT 자동 계수 (RW-13, P5-17/18) */
+export interface CountSource {
+  kind: 'count';
+  /** 블록명 (DrawingModel.blockInsertCounts 키) */
+  blockName: string;
+  /** 자동 계수된 삽입 횟수 (조립 시점 캐시) */
+  count: number;
+  /** 삽입 핸들 목록 — 역추적 근거 */
+  handles: string[];
+}
+
 export type TakeoffSource =
   | MeasurementSource
   | SegmentVolumeSource
   | ManualSource
   | RefSource
-  | DerivedSource;
+  | DerivedSource
+  | CountSource;
 
 /** 파생 소스인지 (좁히기 헬퍼) */
 export function isDerivedSource(source: TakeoffSource): source is DerivedSource {
@@ -206,6 +220,8 @@ function buildBaseNode(
     case 'derived-scaffold':
     case 'derived-shore':
       return buildDerivedNode(source);
+    case 'count':
+      return countTimes(source.count);
   }
 }
 
