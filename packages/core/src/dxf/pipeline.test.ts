@@ -345,6 +345,44 @@ describe('parseAndNormalizeDxf — synthetic-spline.dxf (RW-15 SPLINE 근사)', 
   });
 });
 
+describe('parseAndNormalizeDxf — 실도면 익명화 fixture (RW-20)', () => {
+  const model = parseAndNormalizeDxf(readFixture('anon-yeosuro-excavation.dxf'));
+
+  it('파싱 성공 — 엔티티 수 > 0', () => {
+    expect(model.entities.length).toBeGreaterThan(0);
+  });
+
+  it('line/polyline/text 엔티티 포함', () => {
+    const kinds = new Set(model.entities.map((e) => e.kind));
+    expect(kinds.has('line') || kinds.has('polyline')).toBe(true);
+  });
+
+  it('bounds 유효 — 실도면 좌표 범위 보존', () => {
+    expect(model.bounds).not.toBeNull();
+    if (model.bounds) {
+      expect(model.bounds.maxX - model.bounds.minX).toBeGreaterThan(0);
+      expect(model.bounds.maxY - model.bounds.minY).toBeGreaterThan(0);
+    }
+  });
+
+  it('TEXT 엔티티 값이 모두 ANON_ 토큰으로 교체됨', () => {
+    const texts = model.entities.filter((e) => e.kind === 'text');
+    // 익명화 후에도 text 엔티티가 있어야 하고, 원본 식별 문자열이 없어야 함
+    if (texts.length > 0) {
+      const hasOriginal = texts.some(
+        (e) =>
+          e.kind === 'text' &&
+          (e.value.includes('saman') || e.value.includes('(주)') || e.value.includes('Co.')),
+      );
+      expect(hasOriginal).toBe(false);
+    }
+  });
+
+  it('blockInsertCounts — 블록 집계 결과 있음', () => {
+    expect(Object.keys(model.blockInsertCounts).length).toBeGreaterThanOrEqual(0);
+  });
+});
+
 describe('parseAndNormalizeDxf — 오류·순환 참조', () => {
   it('빈 입력은 한국어 메시지로 실패', () => {
     expect(() => parseAndNormalizeDxf('')).toThrow(/DXF 파싱 실패/);

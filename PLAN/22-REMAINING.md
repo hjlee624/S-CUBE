@@ -65,7 +65,7 @@
   - LibreDWG 1순위, ODA 폴백 이원화 완성
 - [ ] **RW-19** 반자동 계측 E2E/벤치마크 (P6-6/7, NFR-8/9)
   - Playwright 스모크 1건 CI 연결 + 클릭 수·수기입력 횟수 계측(회귀 지표)
-- [ ] **RW-20** 실도면 fixtures 익명화 파이프라인 (P6-5) — CAD/·Quantity_sample/ 활용
+- [x] **RW-20** 실도면 fixtures 익명화 파이프라인 (P6-5) — `scripts/anonymize-dxf.mjs`: TEXT/MTEXT·$LASTSAVEDBY → ANON_n 교체, 실도면 파싱 5개 회귀 테스트, 769 tests ✅
 - [x] **RW-21** 검증 리포트 정식화·diff·배포 (P6-1~13) — `c244ba0`
   - xlsx 검증 리포트 시트(6번째), 항목·역추적·집계 포함 (RW-8에서 구현)
 
