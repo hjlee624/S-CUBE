@@ -54,6 +54,13 @@ export {
   type SectionPairCandidate,
   type SectionProfile,
 } from './geometry/group-candidates.ts';
+export {
+  buildRuleCandidates,
+  globMatch,
+  matchLayerRules,
+  type LayerRuleCandidate,
+  type LayerRuleMatch,
+} from './geometry/layer-rules.ts';
 // quantity/
 export {
   applyLoss,

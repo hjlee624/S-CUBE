@@ -95,6 +95,7 @@ function makeProject(): ScubeProject {
         detail: '절토 항목 생성',
       },
     ],
+    layerRules: [],
   };
 }
 

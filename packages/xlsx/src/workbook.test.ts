@@ -503,6 +503,7 @@ function makeProject(): ScubeProject {
       },
     ],
     history: [],
+    layerRules: [],
   };
 }
 

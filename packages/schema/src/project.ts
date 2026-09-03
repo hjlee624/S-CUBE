@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { CalibrationSchema } from './calibration.ts';
 import { MeasurementSchema } from './measurement.ts';
-import { MaterialSpecSchema, TakeoffItemSchema } from './quantity.ts';
+import { CalcTypeSchema, MaterialSpecSchema, TakeoffItemSchema } from './quantity.ts';
 import { StationSectionSchema } from './station.ts';
 import { SCHEMA_VERSION } from './version.ts';
 import { DrawingRoleSchema } from './workspace.ts';
@@ -115,6 +115,29 @@ export const ScubeProjectMetaSchema = z.object({
 export type ScubeProjectMeta = z.infer<typeof ScubeProjectMetaSchema>;
 
 /**
+ * 레이어 → 항목 매핑 규칙 (P5-7/8, RW-14).
+ *
+ * 레이어 이름 패턴에 매칭되는 엔티티를 지정 CalcType 항목 후보로 자동 그룹핑한다.
+ * 규칙이 없어도 객체 기반 경로(groupBySimilarity)가 기본 동작한다(보조 가속 수단).
+ */
+export const LayerRuleSchema = z.object({
+  /** 고유 식별자 */
+  id: z.string().min(1),
+  /** 레이어 이름 패턴 — glob (* = 0개 이상 문자, ? = 1개 문자, 대소문자 무시) */
+  pattern: z.string().min(1),
+  /** 이 규칙으로 생성할 항목의 계산 유형 */
+  calcType: CalcTypeSchema,
+  /** 자동 할당할 규격 코드 (없으면 사용자가 직접 선택) */
+  specCode: z.string().optional(),
+  /** 항목 라벨 (없으면 레이어명 사용) */
+  label: z.string().optional(),
+  /** 메모 */
+  note: z.string().optional(),
+});
+
+export type LayerRule = z.infer<typeof LayerRuleSchema>;
+
+/**
  * .scube 프로젝트 (03-DATA-MODEL §7).
  * schemaVersion 은 리터럴 1 — 상위 버전은 migrateScubeProject 에서 다운/업 변환한다.
  */
@@ -127,6 +150,8 @@ export const ScubeProjectSchema = z.object({
   items: z.array(TakeoffItemSchema),
   specs: z.array(MaterialSpecSchema),
   history: z.array(ChangeLogEntrySchema),
+  /** 레이어 규칙 — 레이어명 패턴 → 항목 자동 후보 (P5-7/8). 없으면 [] */
+  layerRules: z.array(LayerRuleSchema).optional().default([]),
 });
 
 export type ScubeProject = z.infer<typeof ScubeProjectSchema>;

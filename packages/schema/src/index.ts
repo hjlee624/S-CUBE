@@ -28,6 +28,8 @@ export {
   ChangeLogEntrySchema,
   type DrawingRef,
   DrawingRefSchema,
+  type LayerRule,
+  LayerRuleSchema,
   migrateScubeProject,
   parseScubeProject,
   type ScubeProject,

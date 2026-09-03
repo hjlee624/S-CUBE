@@ -52,7 +52,7 @@
 - [x] **RW-12** 객체 기반 후보 그룹핑 (P5-7c/7d) — `group-candidates.ts`: groupBySimilarity(layer·color) + detectSectionPairs(X오버랩≥50%), 764 tests ✅
 - [x] **RW-13** 블록/심볼 자동 카운트 (P5-17/18) — count 유형 자동화(배수·앵커·다웰),
   카운트 handle 목록 역추적
-- [ ] **RW-14** 레이어 규칙 (P5-7~10) — **옵션 가속**으로 후순위(R-9)
+- [x] **RW-14** 레이어 규칙 (P5-7~10) — LayerRule 스키마, matchLayerRules/buildRuleCandidates, docs/layer-naming-guide.md, 786 tests ✅
 
 ### P3 — 강건성·회귀·배포
 - [x] **RW-15** ELLIPSE/SPLINE 집계·근사 (R-14) — `20ee492`

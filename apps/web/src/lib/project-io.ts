@@ -12,6 +12,7 @@ import {
   type ChangeLogEntry,
   DRAWING_ROLES,
   type DrawingRole,
+  type LayerRule,
   SCHEMA_VERSION,
 } from '@s-cube/schema';
 import type { AppState } from '../store/types.ts';
@@ -38,6 +39,7 @@ export interface ProjectAssemblyInput {
   specs: AppState['specs'];
   items: AppState['items'];
   history?: ChangeLogEntry[];
+  layerRules?: LayerRule[];
   /** createdAt 을 유지하기 위한 기존 프로젝트 메타 (없으면 now) */
   existingCreatedAt?: string;
 }
@@ -90,6 +92,7 @@ export function assembleProject(
     items,
     specs: [...input.specs],
     history: input.history ?? [],
+    layerRules: input.layerRules ?? [],
   };
   return { project, blockedItemIds };
 }
