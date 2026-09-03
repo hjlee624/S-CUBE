@@ -61,11 +61,13 @@ S-CUBE/
 ├─ apps/
 │  ├─ web/                      # Vite 8 SPA
 │  │  ├─ src/
-│  │  │  ├─ canvas/             # 렌더러, 히트테스트, 좌표 변환
+│  │  │  ├─ canvas/             # 렌더러, 히트테스트, 스냅, 좌표 변환, section-area 2클릭
 │  │  │  ├─ features/           # calibration, measure, station, takeoff, spec
+│  │  │  ├─ features/workspace/ # 다중도면 탭 + 필수도면 체크리스트 (FR-1.5/8.3)
+│  │  │  ├─ features/pip/        # 수량 작업대 별도창 Document PiP (FR-8.1/8.2)
 │  │  │  ├─ store/              # Zustand 슬라이스
 │  │  │  ├─ workers/            # dxf-parse.worker.ts
-│  │  │  └─ ui/                 # 공통 컴포넌트
+│  │  │  └─ ui/                 # 공통 컴포넌트 (동적/모션 디자인 — FR-8.4)
 │  │  └─ vite.config.ts
 │  └─ server/                   # Hono + Node 24
 │     └─ src/routes/            # files, convert, export, spec
@@ -105,11 +107,13 @@ DrawingModel { layers[], entities[](world 좌표) }
    ▼
 CalibratedDrawing { ..., unitScale }
    │ (4) 선택 — 클릭 히트테스트 → 엔티티 handle
+   │     · 레이어 비의존: 기하·색상·선형·근접성 기반 히트/그룹핑 (레이어는 표시 필터일 뿐)
+   │     · 반자동 경로: 원지반·계획선 2클릭 → 두 프로파일 차집합 적분(FR-3.10)
    ▼
-Measurement { kind: area|length, value_m, sourceHandles[], method }
+Measurement { kind: area|length, value_m, sourceHandles[], method, cutFill? }
    │ (5) 배치 — 측점/구간/항목에 할당
    ▼
-TakeoffItem { 공종, 규격, 단위, 수량, basis: FormulaTree }
+TakeoffItem { 공종, 규격, 단위, calcType, 수량, basis: FormulaTree }  // calcType 8종별 수식 생성
    │ (6) 렌더 — FormulaTree → 엑셀 수식 문자열
    ▼
 수량산출서.xlsx

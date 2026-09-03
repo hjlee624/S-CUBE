@@ -7,16 +7,21 @@ BOQ의 일부만 커버된다는 문제의식에서 출발.
 
 ## 계산 유형 8종
 
-| # | CalcType | 계산식 | 단위 | 도면 취득 | 지원 |
+| # | CalcType | 계산식 | 단위 | 도면 취득 | 지원 / core 빌더 |
 |---|---|---|---|---|---|
-| 1 | `section-length` | 단면적 × 연장 (양단면평균법/각주법) | ㎥ | 횡단면 폐합영역 + 측점 연장 | ✅ 핵심 (Phase 3) |
-| 2 | `area-thickness` | 면적 × 두께 | ㎥ | 평면 폐합영역 + 규격의 t | ✅ (두께는 규격에서) |
-| 3 | `area` | 폐합영역 면적 직접 | ㎡ | 평면/사면 폐합영역 클릭 | ✅ (Phase 2) |
-| 4 | `contact-length` | 접촉폭(둘레) × 연장 — **파생 면적** | ㎡ | 단면에서 접촉변 선택 × 구간 연장 | ✅ (항목 간 참조) |
-| 5 | `length` | 선형 연장 직접 | m | 선/폴리라인/치수 클릭 | ✅ (Phase 2) |
-| 6 | `count` | 개수 집계 | EA·개소·본·공·주 | 심볼/블록 카운트 (클릭 집계) | ✅ 기본 수동, Phase 5 블록 자동인식 |
-| 7 | `ref` | 다른 항목 참조 파생 (합·차·계수) | 좌동 | 도면 무관 — 항목 수식 | ✅ (FormulaNode) |
-| 8 | `manual` | 수동 입력 | 식·hr·mth·회 | 도면 무관 | ✅ 입력만 (FR-4.7) |
+| 1 | `section-length` | 단면적 × 연장 (양단면평균법/각주법) | ㎥ | 횡단면 폐합영역 + 측점 연장 | ✅ 핵심 (Phase 3) · `sectionLength` |
+| 2 | `area-thickness` | 면적 × 두께 | ㎥ | 평면 폐합영역 + 규격의 t | ✅ · `areaThickness` (두께=규격, 하드코딩 금지) |
+| 3 | `area` | 폐합영역 면적 직접 | ㎡ | 평면/사면 폐합영역 클릭 | ✅ (Phase 2, 측정값 직결) · HATCH 면적은 파서 대기(R-6) |
+| 4 | `contact-length` | 접촉폭(둘레) × 연장 — **파생 면적** | ㎡ | 단면에서 접촉변 선택 × 구간 연장 | ⚠ `contactLength` — 접촉변 자동판별은 P4-9-1 |
+| 5 | `length` | 선형 연장 직접 | m | 선/폴리라인/치수 클릭 | ✅ (Phase 2, 측정값 직결) |
+| 6 | `count` | 개수 집계 | EA·개소·본·공·주 | 심볼/블록 카운트 (클릭 집계) | ⚠ `countTimes` — **자동 카운트 미지원**(수동), Phase 5 P5-17/18 |
+| 7 | `ref` | 다른 항목 참조 파생 (합·차·계수) | 좌동 | 도면 무관 — 항목 수식 | ✅ (FormulaNode: `applyLoss`/`convertUnit` 등) |
+| 8 | `manual` | 수동 입력 | 식·hr·mth·회 | 도면 무관 | ✅ 입력만 (FR-4.7, const) |
+
+> **구현 정합**: core `calc.ts`는 6빌더(`sectionLength`/`areaThickness`/`contactLength`/
+> `countTimes` + 직교 수식자 `applyLoss`·`convertUnit`)로 위 8유형을 매핑한다.
+> `CalcType` 리터럴 유니온(03-DATA-MODEL §6)과 `TakeoffEditor` 선택가능 유형을 1:1 대조
+> 테스트로 커버리지를 고정한다. ⚠ 표시는 자동 취득이 미완(수동/보강 대기)인 유형.
 
 **단위 환산은 유형과 직교**: `conversions`(단위중량 ㎥→TON, 정척 m→본, kg/m)와
 `lossRate`(할증)를 어느 유형에든 덧씌운다. 철근 = 콘크리트체적 `ref` × 철근비(kg/㎥)

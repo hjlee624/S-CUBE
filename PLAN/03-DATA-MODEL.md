@@ -67,8 +67,11 @@ interface Measurement {
   kind: 'area' | 'length';
   value: number;             // area: ㎡, length: m (캘리브레이션 적용 후)
   rawValue: number;          // 도면 단위 원값 (검증용)
-  method: 'polyline' | 'hatch' | 'auto-boundary' | 'entity-chain' | 'dimension' | 'manual';
+  method: 'polyline' | 'hatch' | 'auto-boundary' | 'entity-chain'
+        | 'profile-cut-fill'   // 원지반·계획선 2클릭 자동 절토/성토 (FR-3.10)
+        | 'dimension' | 'manual';
   sourceHandles: EntityHandle[];
+  cutFill?: 'cut' | 'fill';    // method='profile-cut-fill'일 때 부호 구분(절토/성토)
   holes?: EntityHandle[];    // 차감된 내부 영역
   label: string;             // "절토부", "옹벽 본체" 등 사용자 명명
   createdAt: string;
@@ -78,15 +81,22 @@ interface Measurement {
 ## 4. 측점 · 구간
 
 ```ts
-// "No.8+0.000(전)" 파싱 결과
+// "No.8+0.000(전)" 파싱 결과 — 단, 번호만으로도 유효
 interface Station {
-  raw: string;               // 원본 표기
-  no: number;                // 8
-  plus_m: number;            // 0.000
-  chainage_m: number;        // no * stationInterval + plus_m
+  raw?: string;              // 원본 표기(있으면). 번호만 입력 시 생략 가능
+  label?: string;            // 자유 입력 라벨 허용 (표기규격 미준수도 1급 허용)
+  no: number;                // 8  (측점 번호 — 최소 필수)
+  plus_m?: number;           // 0.000  (옵셔널: +거리 표기가 있을 때만)
+  chainage_m: number;        // 번호×stationInterval (+ plus_m 있으면 가산)
   discontinuity: 'pre' | 'post' | null;  // 전/후
 }
+```
 
+> **표기규격 미준수 측점도 1급 허용.** 사용자는 `No.8+0.000` 강제 없이 **번호만**
+> 입력해도 된다. `plus_m`가 없으면 `chainage_m = no × stationInterval_m`로 파생하고,
+> `+거리`가 있으면 가산한다. 자유 `label`도 허용하되 정렬은 `chainage_m` 기준.
+
+```ts
 interface StationSection {
   id: string;
   station: Station;
@@ -130,10 +140,47 @@ interface MaterialSpec {
   }[];
   lossRate?: number;         // 할증률 0.03 = 3%
   standardLength_m?: number; // 정척 (m → 본)
+  thickness_m?: number;      // area-thickness 유형용 두께 (규격에서 읽음, 하드코딩 금지)
 }
 ```
 
+> **두께 규칙(area-thickness):** 면적×두께 계산의 두께는 **규격(MaterialSpec)에서
+> 읽는다**. `thickness_m`(또는 `spec` 문자열 파싱)이 없는 규격은 area-thickness 항목
+> 추가를 **차단하거나 경고**한다 — UI의 조용한 `0.1` 하드코딩 금지. basis의 두께노드
+> `label`에 규격 출처를 남겨 역추적을 유지한다.
+
 ## 6. 산출 항목 · 산출근거
+
+### 계산유형 (CalcType) — BOQ 다공종 대응
+
+```ts
+// docs/quantity-calc-taxonomy.md 8종과 1:1. 양단면평균법(section-length)은 이 중 하나.
+type CalcType =
+  | 'section-length'   // 단면적 × 연장 (양단면평균법/각주법)   → avgEndArea
+  | 'area-thickness'   // 면적 × 두께 (두께는 규격에서)           → mul(area, thickness)
+  | 'area'             // 폐합영역 면적 직접                      → area 측정값
+  | 'contact-length'   // 접촉둘레 × 연장 (파생 면적: 거푸집 등)  → mul(contact, length)
+  | 'length'           // 선형 연장 직접                          → length 측정값
+  | 'count'            // 개수 집계 (심볼/블록)                   → mul(count, per)
+  | 'ref'              // 다른 항목 참조 파생 (합·차·계수)        → ref/add/sub/mul
+  | 'manual';          // 수동 입력 (도면 외 수량, FR-4.7)        → const
+```
+
+각 유형은 위 매핑대로 `FormulaNode` 트리를 자동 생성한다. `conversions`(단위환산)와
+`lossRate`(할증)는 유형과 **직교**로 어느 유형에든 덧씌운다.
+
+**구현 유형 vs 미지원 유형** (커버리지 가시화 — core `calc.ts` 빌더와 1:1):
+
+| CalcType | core 빌더 | 자동 취득 | 비고 |
+|---|---|---|---|
+| section-length | `sectionLength` | ✅ 측점 연장 | 핵심 |
+| area-thickness | `areaThickness` | ✅ 두께=규격 | 두께 규격연동 필수(하드코딩 금지) |
+| area | (측정값 직결) | ✅ | HATCH 면적은 파서 보강 대기(R-6) |
+| contact-length | `contactLength` | ⚠ 부분 | 접촉변 자동판별은 P4-9-1에서 보강 |
+| length | (측정값 직결) | ✅ | |
+| count | `countTimes` | ⚠ 수동 | 자동 블록카운트는 Phase 5 |
+| ref | `applyLoss`/`convertUnit` 등 | ✅ | FormulaNode 조합 |
+| manual | (const) | — | 입력만 |
 
 ```ts
 interface TakeoffItem {
@@ -141,11 +188,29 @@ interface TakeoffItem {
   workType: string;          // 공종
   specCode: string;          // MaterialSpec.code
   unit: string;
+  calcType: CalcType;        // ★ 계산유형 — 수량식 생성 규칙 결정
   quantity: number;          // 계산 결과 (캐시)
   basis: FormulaNode;        // ★ 산출근거 트리
   sourceRefs: { drawingId: DrawingId; handles: EntityHandle[] }[];
 }
 
+// 수량 소스 — 측정/구간/수동/참조/파생
+type TakeoffSource =
+  | { kind: 'measurement'; measurementId: string }
+  | { kind: 'segment';     segmentId: string }
+  | { kind: 'manual';      value: number }
+  | { kind: 'ref';         itemId: string }
+  // 파생 소스 — 원본(콘크리트 등) 항목 기하에서 자동 조립, 상수 대신 fRef로 역추적 유지
+  | { kind: 'derived-contact';  sourceItemId: string; fRef: FormulaNode }  // 거푸집=접촉둘레×연장
+  | { kind: 'derived-scaffold'; sourceItemId: string; fRef: FormulaNode }  // 비계=외주둘레×높이
+  | { kind: 'derived-shore';    sourceItemId: string; fRef: FormulaNode }; // 동바리=수평면적×타설높이
+```
+
+> **파생 소스**는 두께/높이 상수를 사람이 넣지 않고, 원본 콘크리트 항목의 handle을
+> `sourceRefs`로 물어 도면 기하(`fRef`)로 조립한다. 사람이 판단·입력하는 것은
+> 높이/타설고 정도로 한정 — 계수 직접입력 방식은 반자동 의도(원칙 1)와 배치된다.
+
+```ts
 // 산출근거 트리 — 엑셀 수식으로 렌더 가능해야 함
 type FormulaNode =
   | { op: 'const';  value: number; label?: string }
