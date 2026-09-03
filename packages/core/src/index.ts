@@ -47,6 +47,13 @@ export {
   type SnapGraph,
   type SnapNode,
 } from './geometry/auto-close.ts';
+export {
+  detectSectionPairs,
+  groupBySimilarity,
+  type EntityGroup,
+  type SectionPairCandidate,
+  type SectionProfile,
+} from './geometry/group-candidates.ts';
 // quantity/
 export {
   applyLoss,
