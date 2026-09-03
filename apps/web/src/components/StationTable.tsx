@@ -191,10 +191,34 @@ export function StationTable() {
   const setStationInterval = useAppStore((s) => s.setStationInterval);
   const showToast = useAppStore((s) => s.showToast);
 
+  const drawings = useAppStore((s) => s.drawings);
+
   const [newRaw, setNewRaw] = useState('');
   const [newItem, setNewItem] = useState('');
+  const [inputFocused, setInputFocused] = useState(false);
 
   const rows = useMemo(() => groupRows(sections, stationInterval_m), [sections, stationInterval_m]);
+
+  // RW-4: 활성 도면의 TEXT 엔티티 중 parseStation 성공하는 값을 측점 후보로 추출.
+  // 이미 등록된 측점은 제외해 중복 추가를 막는다.
+  const stationSuggestions = useMemo(() => {
+    const activeDrawing = drawings.find((d) => d.id === activeId);
+    if (activeDrawing == null) return [];
+    const existingRaws = new Set(rows.map((r) => r.raw));
+    const seen = new Set<string>();
+    const candidates: { raw: string; chainage_m: number }[] = [];
+    for (const entity of activeDrawing.model.entities) {
+      if (entity.kind !== 'text') continue;
+      const raw = entity.value.trim();
+      if (seen.has(raw) || existingRaws.has(raw)) continue;
+      const parsed = parseStation(raw, stationInterval_m);
+      if (!isStationParseError(parsed)) {
+        seen.add(raw);
+        candidates.push({ raw, chainage_m: parsed.chainage_m });
+      }
+    }
+    return candidates.sort((a, b) => a.chainage_m - b.chainage_m).map((c) => c.raw);
+  }, [drawings, activeId, rows, stationInterval_m]);
 
   // itemKey 별 이상 목록 → sectionId 로 인덱싱해 셀 배지에 매칭.
   const anomalyBySection = useMemo(() => {
@@ -315,23 +339,51 @@ export function StationTable() {
           <span className="text-zinc-600">m</span>
         </label>
 
-        <div className="flex items-center gap-1">
-          <input
-            value={newRaw}
-            placeholder="측점 (예: No.8+0.000(전))"
-            onChange={(e) => setNewRaw(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') addRow();
-            }}
-            className="w-48 rounded border border-zinc-800 bg-zinc-950 px-2 py-0.5 font-mono text-zinc-200 outline-none focus:border-emerald-600"
-          />
-          <button
-            type="button"
-            onClick={addRow}
-            className="rounded-md bg-emerald-500 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-950 transition-all duration-150 hover:bg-emerald-400 active:scale-[0.97]"
-          >
-            측점 추가
-          </button>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1">
+            <input
+              value={newRaw}
+              placeholder="측점 (예: No.8+0.000(전))"
+              onChange={(e) => setNewRaw(e.target.value)}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setTimeout(() => setInputFocused(false), 150)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addRow();
+              }}
+              className="w-48 rounded border border-zinc-800 bg-zinc-950 px-2 py-0.5 font-mono text-zinc-200 outline-none focus:border-emerald-600"
+            />
+            <button
+              type="button"
+              onClick={addRow}
+              className="rounded-md bg-emerald-500 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-950 transition-all duration-150 hover:bg-emerald-400 active:scale-[0.97]"
+            >
+              측점 추가
+            </button>
+          </div>
+          {/* RW-4: 도면 TEXT 측점 후보 제안 — 포커스 시 또는 항상 표시 */}
+          {stationSuggestions.length > 0 && (inputFocused || newRaw === '') && (
+            <div className="flex flex-wrap gap-1">
+              {stationSuggestions.slice(0, 12).map((sug) => (
+                <button
+                  key={sug}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setNewRaw(sug);
+                  }}
+                  title={`도면 TEXT에서 인식된 측점: ${sug}`}
+                  className="rounded bg-zinc-800 px-1.5 py-px font-mono text-[10px] text-zinc-300 transition-colors duration-100 hover:bg-emerald-500/20 hover:text-emerald-300"
+                >
+                  {sug}
+                </button>
+              ))}
+              {stationSuggestions.length > 12 && (
+                <span className="self-center text-[10px] text-zinc-600">
+                  +{stationSuggestions.length - 12}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-1">

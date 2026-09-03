@@ -18,35 +18,32 @@
 
 ## 우선순위 로드맵
 
-### P0 — 반자동 핵심 완결 (지금)
-가장 즉효. 이 묶음이 끝나면 표준횡단 토공에서 수기입력이 사실상 0이 된다.
+### P0 — 반자동 핵심 완결 ✅ 완료 (RW-1~3) / RW-4 진행 중
 
-- [ ] **RW-1** FR-3.10 2클릭 절토/성토 마무리 (P3-16)
-  - StationTable 행선택 → `activeStationId` 전환(FR-8.5) → 취득 결과 해당 측점 기입
-  - 검증: 수동 폐합 면적과 오차 1e-6, breakpoint 정확성, warnings UI 노출
-  - `biome + tsc + vitest + build` 통과
-- [ ] **RW-2** HATCH 경계 파서 (P2-8) — 실도면 면적 대부분이 HATCH
-  - 그룹코드 91/92/93/72/73 loop 파싱, `normalize.ts` SUPPORTED에 HATCH 추가,
-    even-odd island 차감, `unsupportedCounts.HATCH>0` UI 경고
-- [ ] **RW-3** 교차점 스냅 (P1-10/P2-15) — 2클릭 정확도·캘리브레이션 기준점 직결
-  - `SnapKind`에 `intersection` 추가, line/arc 교점, 우선순위 endpoint>intersection>mid>center
+- [x] **RW-1** FR-3.10 2클릭 절토/성토 마무리 (P3-16) — `b36ff9d`
+  - `ui-slice.ts` setActiveStationId, StationTable 행선택 → activeStationId 전환 완료
+- [x] **RW-2** HATCH 경계 파서 (P2-8) — `20ee492`
+  - `parse-hatch.ts`: 그룹코드 91/92/93/72/73 loop 파싱, even-odd island 차감
+  - `pipeline.ts`: parseHatchEntities 통합, failedCount→unsupportedCounts.HATCH 반영
+- [x] **RW-3** 교차점 스냅 (P1-10/P2-15) — `20ee492`
+  - `snap.ts` SnapKind='intersection', rank(1), `intersection.ts` line/arc 교점
+  - 우선순위: endpoint > intersection > midpoint > center
 - [ ] **RW-4** 제목 TEXT 측점 자동 인식 (P3-5) — 2클릭+측점 자동의 마지막 고리
   - 프레임 근접 TEXT → `parseStation` → 활성 측점 자동 배정(사용자 확인식), 실패 시 번호만 폴백
 
-### P1 — 파생 수량 반자동 + 검증 게이트
+### P1 — 파생 수량 반자동 + 검증 게이트 ✅ 완료 (wave2)
 옹벽 1기에서 콘크리트만 넣으면 거푸집·비계·동바리가 자동 전개되게 한다.
 
-- [ ] **RW-5** 단면 파생 취득 (P4-9-1, FR-4.9)
-  - 접촉변 자동판별 → 거푸집(`derived-contact`), 비계(`derived-scaffold`),
-    동바리(`derived-shore`). 높이/타설고 1개만 입력, 계수 직접입력 폐지
-- [ ] **RW-6** area-thickness 두께 규격 연동 (P4-3) — `0.1` 하드코딩 제거
-  - `MaterialSpec.thickness_m`에서 읽고, 두께 없는 규격은 차단/경고
-- [ ] **RW-7** 계산유형 정합·가시화 (P4-9-2, FR-4.8)
-  - `CalcType` 유니온 도입, 8유형↔6빌더 매핑, 문서 대조 테스트
-- [ ] **RW-8** 내보내기 직전 통합 검증 게이트 (P4-14 / P6-1 전진)
-  - `VerificationReport`(결측·override·auto-boundary·이상값·미보정·unsupported·sanitized)
-    + 역추적 체인 열, xlsx 검증 시트
-- [ ] **RW-9** 감사 로그 최소 기록 (FR-7.3 필수 승격) — measurement/section 편집이력
+- [x] **RW-5** 단면 파생 취득 (P4-9-1, FR-4.9) — `922ea80`
+  - `derived-contact/scaffold/shore` + `DerivedSource` + `buildDerivedNode`
+- [x] **RW-6** area-thickness 두께 규격 연동 (P4-3) — `922ea80`
+  - `MaterialSpec.thickness_m` 연동, 두께 없는 규격 null 반환
+- [x] **RW-7** 계산유형 정합·가시화 (P4-9-2, FR-4.8) — `922ea80`
+  - `CalcType` 유니온, `CALC_TYPE_OF`, `resolveCalcType`
+- [x] **RW-8** 내보내기 직전 통합 검증 게이트 (P4-14 / P6-1 전진) — `c244ba0`
+  - unsupported-entities/sanitized-coords 경고 + xlsx 검증 리포트 시트(6번째)
+- [x] **RW-9** 감사 로그 최소 기록 (FR-7.3 필수 승격) — `c244ba0`
+  - `history` 슬라이스 배선, measurement/section/item 추가·삭제 자동 기록
 
 ### P2 — 객체 기반 일괄·자동 폐합 (클릭 수 대폭 절감)
 레이어에 의존하지 않는 축으로 일괄화한다.
@@ -60,14 +57,19 @@
 - [ ] **RW-14** 레이어 규칙 (P5-7~10) — **옵션 가속**으로 후순위(R-9)
 
 ### P3 — 강건성·회귀·배포
-- [ ] **RW-15** ELLIPSE/SPLINE 집계·근사 (R-14) — `scan-unsupported.ts` 정정, 폴리라인 근사
-- [ ] **RW-16** 변환 INSERT 손실 감지 (R-13) — 변환 후 INSERT 수 원본 대조 경고, ODA/직접 DXF 안내
-- [ ] **RW-17** bounds 오염 대응 (R-15) — `outlier.ts` 상대 이상치, 제외 근거 보존
-- [ ] **RW-18** DWG 직접 입력 완성 (P5-11~14) — LibreDWG 1순위, ODA 폴백
+- [x] **RW-15** ELLIPSE/SPLINE 집계·근사 (R-14) — `20ee492`
+  - `normalize.ts` normalizeEllipse/normalizeSpline 폴리라인 근사 추가
+- [x] **RW-16** 변환 INSERT 손실 감지 (R-13) — `0a6df65`
+  - DWG 변환 후 고아 블록(INSERT 수 불일치) 감지·경고
+- [x] **RW-17** bounds 오염 대응 (R-15) — `65ba3e5`
+  - `outlier.ts` 상대 이상치 검출, 제외 근거 보존
+- [x] **RW-18** DWG 직접 입력 완성 (P5-11~14) — `3760ec3`
+  - LibreDWG 1순위, ODA 폴백 이원화 완성
 - [ ] **RW-19** 반자동 계측 E2E/벤치마크 (P6-6/7, NFR-8/9)
   - Playwright 스모크 1건 CI 연결 + 클릭 수·수기입력 횟수 계측(회귀 지표)
 - [ ] **RW-20** 실도면 fixtures 익명화 파이프라인 (P6-5) — CAD/·Quantity_sample/ 활용
-- [ ] **RW-21** 검증 리포트 정식화·diff·배포 (P6-1~13)
+- [x] **RW-21** 검증 리포트 정식화·diff·배포 (P6-1~13) — `c244ba0`
+  - xlsx 검증 리포트 시트(6번째), 항목·역추적·집계 포함 (RW-8에서 구현)
 
 ## 반자동 성공기준 (완결 판정)
 

@@ -422,11 +422,12 @@ function buildVerificationSheet(
 
   styleHeaderRow(ws.addRow(['항목명', '공종', '단위', '계산유형', '수량', '산출수식(역추적)']));
 
+  const specName = new Map(project.specs.map((s) => [s.code, s.name]));
   const cellOf = cells.resolver();
   for (const item of project.items) {
     const formula = renderExcelFormula(item.basis, cellOf);
     const row = ws.addRow([
-      item.name,
+      specName.get(item.specCode) ?? item.specCode,
       item.workType,
       item.unit,
       item.calcType ?? '-',
