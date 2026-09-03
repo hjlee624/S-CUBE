@@ -9,12 +9,14 @@ import { z } from 'zod';
  * - sourceHandles: 측정 근거가 된 엔티티 handle 목록(역추적 키).
  * - holes: 차감된 내부 영역(island)의 handle 목록.
  * - method: 측정 취득 방식.
- *   - polyline:      폐합 폴리라인 면적/길이
- *   - hatch:         HATCH 경계 루프 면적
- *   - auto-boundary: 자동 폐합 경계 탐지 (Phase 5)
- *   - entity-chain:  선분·원호 연결 체인
- *   - dimension:     DIMENSION 실측값
- *   - manual:        수동 입력
+ *   - polyline:         폐합 폴리라인 면적/길이
+ *   - hatch:            HATCH 경계 루프 면적
+ *   - auto-boundary:    자동 폐합 경계 탐지 (Phase 5)
+ *   - entity-chain:     선분·원호 연결 체인
+ *   - profile-cut-fill: 원지반선·계획선 2클릭 자동 절토/성토 단면적 (FR-3.10)
+ *   - dimension:        DIMENSION 실측값
+ *   - manual:           수동 입력
+ * - cutFill: method='profile-cut-fill'일 때 절토(cut)/성토(fill) 부호 구분(FR-3.10).
  */
 export const MeasurementSchema = z.object({
   id: z.string().min(1),
@@ -29,9 +31,12 @@ export const MeasurementSchema = z.object({
     z.literal('hatch'),
     z.literal('auto-boundary'),
     z.literal('entity-chain'),
+    z.literal('profile-cut-fill'),
     z.literal('dimension'),
     z.literal('manual'),
   ]),
+  /** method='profile-cut-fill'일 때 절토(cut)/성토(fill) 부호 구분 (FR-3.10) */
+  cutFill: z.union([z.literal('cut'), z.literal('fill')]).optional(),
   /** 측정 근거 엔티티 handle (역추적 키) */
   sourceHandles: z.array(z.string()),
   /** 차감된 내부 영역(island)의 handle */

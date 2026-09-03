@@ -7,6 +7,7 @@ import type {
   DrawingRole,
   MaterialSpec,
   Measurement,
+  PVertex,
   StationSection,
   Vec2,
 } from '@s-cube/schema';
@@ -16,8 +17,8 @@ import type { TakeoffSource } from '../lib/takeoff-build.ts';
 import type { EditableTakeoffItem, TakeoffDraft } from '../lib/takeoff-derive.ts';
 import type { ParseStage } from '../workers/messages.ts';
 
-/** 활성 도구 (P1-10, P1-12, P2-6) */
-export type ToolId = 'pan' | 'calibrate' | 'dim-check' | 'measure';
+/** 활성 도구 (P1-10, P1-12, P2-6, P3-13 단면적 취득) */
+export type ToolId = 'pan' | 'calibrate' | 'dim-check' | 'measure' | 'section-area';
 
 /** 하단 측점·체적 도크 탭 (Phase 3-C) */
 export type StationDockTab = 'table' | 'segments' | 'profile';
@@ -276,11 +277,38 @@ export interface ProjectSlice {
 /** 산출 도크 탭 (Phase 4) — 규격 마스터 / 산출 항목 */
 export type TakeoffDockTab = 'specs' | 'items';
 
+/**
+ * 단면적 취득 도구(section-area)의 1단계 선택 상태 — 원지반선을 먼저 클릭한 뒤
+ * 계획선 클릭을 기다리는 중간 상태. 2단계째(계획선) 클릭 시 areaBetweenProfiles 로
+ * cut/fill 을 산출하고 활성 측점에 자동 기입한 뒤 이 상태를 비운다(null).
+ *
+ * canvas 오케스트레이터(actions.ts)가 원지반선 엔티티에서 뽑은 정점열·handle 을 담아둔다.
+ * store 는 canvas 를 import 하지 않으므로(오케스트레이션은 canvas/lib), 정점 추출 자체는
+ * actions.ts 가 수행하고 여기엔 결과만 보관한다.
+ */
+export interface PendingSectionGround {
+  /** 원지반선 엔티티 handle (Measurement.sourceHandles·하이라이트 키) */
+  handle: string;
+  /** 원지반선 프로파일 정점열 (도면 좌표, bulge 포함 — core 가 평탄화) */
+  vertices: PVertex[];
+}
+
 export interface UiSlice {
   activeTool: ToolId;
   toast: ToastState | null;
   /** null이면 모달 닫힘 */
   dwgGuide: DwgGuideState | null;
+  /**
+   * 단면적 취득: 원지반선 선택 후 계획선 대기 중인 상태. null이면 1단계(원지반선) 대기.
+   * (section-area 도구 이탈·전환·Escape 시 초기화한다.)
+   */
+  pendingSectionGround: PendingSectionGround | null;
+  /**
+   * 자동 기입 대상 활성 측점(선택된 측점 행)의 첫 단면 id. StationTable 행 라디오/클릭으로
+   * 설정한다. null이면 "측점을 먼저 추가/선택" 안내 후 취득 차단. 측점 행은 (raw+불연속)
+   * 단위이므로, 그 행에 속한 임의 단면 id 하나를 앵커로 보관해 station 을 역추적한다.
+   */
+  activeStationId: string | null;
   /** 하단 측점·체적 도크 열림 여부 (Phase 3-C) */
   stationDockOpen: boolean;
   /** 하단 도크 활성 탭 (Phase 3-C) */
@@ -290,6 +318,10 @@ export interface UiSlice {
   /** 수량산출 작업대 활성 탭 (도킹·분리 공용) */
   workbenchTab: WorkbenchTab;
   setActiveTool: (tool: ToolId) => void;
+  /** 단면적 취득 1단계 완료 — 원지반선 정점열·handle 보관(계획선 대기). null이면 초기화 */
+  setPendingSectionGround: (ground: PendingSectionGround | null) => void;
+  /** 자동 기입 대상 활성 측점 설정(측점 행 앵커 단면 id). null이면 선택 해제 */
+  setActiveStationId: (id: string | null) => void;
   showToast: (message: string, tone?: ToastState['tone']) => void;
   dismissToast: (id: number) => void;
   showDwgGuide: (file: File, guide: string) => void;

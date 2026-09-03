@@ -2,10 +2,17 @@
  * 캔버스 명령 — Zoom Extents (P1-9), 치수 픽킹 (P1-12), 측정 픽킹 (P2-6).
  * UI 컴포넌트·단축키 핸들러가 호출한다.
  */
-import type { Bounds, Vec2 } from '@s-cube/schema';
+import type { Bounds, NEntity, Vec2 } from '@s-cube/schema';
 import { checkDimension } from '../lib/calibration.ts';
-import { entityBounds, mergeBounds } from '../lib/core-api.ts';
+import { distancePointToPolyline, entityBounds, mergeBounds } from '../lib/core-api.ts';
 import { buildMeasurement } from '../lib/measure.ts';
+import {
+  computeSectionAreas,
+  extractProfileVertices,
+  formatSectionToast,
+  planSectionAssignments,
+  resolveActiveStation,
+} from '../lib/section-area.ts';
 import { useAppStore } from '../store/index.ts';
 import { overlay } from './overlay-state.ts';
 import { hitTestEntity, holeHandlesOf, type PickHit, pickBest, rawMeasureOf } from './pick.ts';
@@ -152,6 +159,136 @@ export function pickMeasureAt(worldPos: Vec2, additive = false): void {
   if (additive) {
     useAppStore.setState({ selectedMeasurementIds: [...priorSelection, measurement.id] });
   }
+}
+
+/** 단면적 취득 프로파일 픽킹 허용거리 (화면 px) — 선(line·open polyline) 근접 판정. */
+const SECTION_PICK_TOLERANCE_PX = 8;
+
+/**
+ * 커서 근처에서 프로파일(선) 엔티티 하나를 고른다 (순수하지 않음: scene R-tree 사용).
+ *
+ * 원지반선·계획선은 열린 폴리라인/라인이므로, 면적 도형이 아니라 **경계 근접 거리**가 가장
+ * 가까운 line·polyline 을 고른다(성능경로 R-tree 유지). arc·circle·hatch·text·dimension 은 제외.
+ */
+function pickProfileEntity(worldPos: Vec2, tol_world: number): NEntity | null {
+  const s = useAppStore.getState();
+  const model = s.model;
+  if (model === null || scene.index === null) return null;
+  const hits = scene.index.search({
+    minX: worldPos.x - tol_world,
+    minY: worldPos.y - tol_world,
+    maxX: worldPos.x + tol_world,
+    maxY: worldPos.y + tol_world,
+  });
+  let best: NEntity | null = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const hit of hits) {
+    const e = model.entities[hit.i];
+    if (e === undefined) continue;
+    if (e.kind !== 'line' && e.kind !== 'polyline') continue;
+    const verts =
+      e.kind === 'line'
+        ? [
+            { p: e.a, bulge: 0 },
+            { p: e.b, bulge: 0 },
+          ]
+        : e.vertices;
+    const d = distancePointToPolyline(worldPos, verts, e.kind === 'polyline' ? e.closed : false);
+    if (d <= tol_world && d < bestDist) {
+      best = e;
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
+/**
+ * 단면적 취득 (P3-13) — 반자동 2클릭 흐름.
+ *
+ * (1) 원지반선 클릭: 프로파일 정점열·handle 을 pendingSectionGround 에 보관하고 안내.
+ * (2) 계획선 클릭: 두 프로파일 정점열 → areaBetweenProfiles(도면 단위²) → 축척²(scale²)
+ *     적용(㎡) → cut→'절토'·fill→'성토' Measurement(profile-cut-fill) 생성 → 활성 측점 단면에
+ *     자동 생성/갱신(assignMeasurementToSection·addSection). 결과·경고 토스트 후 상태 초기화.
+ *
+ * 캘리브레이션·활성 측점 미충족 시 차단(도구 자체가 캘리브레이션 필수라 1차 방어됨).
+ */
+export function pickSectionProfileAt(worldPos: Vec2): void {
+  const s = useAppStore.getState();
+  const model = s.model;
+  const cal = s.calibration;
+  if (model === null || cal === null || scene.index === null || s.activeId === null) return;
+
+  const tol_world = SECTION_PICK_TOLERANCE_PX / s.viewport.pxPerUnit;
+  const picked = pickProfileEntity(worldPos, tol_world);
+  if (picked === null) {
+    s.showToast('근처에서 선(원지반선·계획선)을 찾지 못했습니다', 'info');
+    return;
+  }
+  const vertices = extractProfileVertices(picked);
+  if (vertices === null) {
+    s.showToast('이 객체는 프로파일(선)이 아니라 단면적 취득에 쓸 수 없습니다', 'warn');
+    return;
+  }
+
+  // 1단계: 원지반선 선택 → 보관 + 안내. (활성 측점 검사는 2단계 계산 직전에 한다.)
+  if (s.pendingSectionGround === null) {
+    s.setPendingSectionGround({ handle: picked.handle, vertices });
+    s.showToast('원지반선 선택됨 — 이제 계획선을 클릭하세요', 'info');
+    return;
+  }
+
+  // 2단계: 계획선 선택. 같은 선을 두 번 클릭하면 되돌린다(오조작 방지).
+  const ground = s.pendingSectionGround;
+  if (picked.handle === ground.handle) {
+    s.showToast('원지반선과 다른 선(계획선)을 클릭하세요', 'warn');
+    return;
+  }
+
+  // 활성 측점 확인 — 없으면 계산하지 않고 안내(1단계 선택은 유지해 재시도 가능).
+  const station = resolveActiveStation(s.sections, s.activeStationId);
+  if (station === null) {
+    s.showToast('측점을 먼저 추가/선택하세요 — 측점 표에서 대상 행을 고르면 됩니다', 'warn');
+    return;
+  }
+
+  const result = computeSectionAreas(ground.vertices, vertices, cal.scale);
+  const now = new Date().toISOString();
+  const plan = planSectionAssignments({
+    station,
+    drawingId: s.activeId,
+    groundHandle: ground.handle,
+    designHandle: picked.handle,
+    result,
+    scale_mPerUnit: cal.scale,
+    sections: s.sections,
+    stationLabel: station.raw,
+    createdAt: now,
+    cutMeasurementId: crypto.randomUUID(),
+    fillMeasurementId: crypto.randomUUID(),
+    cutSectionId: crypto.randomUUID(),
+    fillSectionId: crypto.randomUUID(),
+  });
+
+  // 부수효과: 측정 생성 → 단면 생성/갱신. (store 순수전이 호출은 오케스트레이터 책임.)
+  for (const m of plan.measurements) s.addMeasurement(m);
+  for (const w of plan.writes) {
+    if (w.op === 'create') s.addSection(w.section);
+    else s.assignMeasurementToSection(w.sectionId, w.measurementId, w.area_m2);
+  }
+
+  // 1단계 선택 해제(다음 취득 준비). 결과·경고를 하나의 토스트로 합친다.
+  // (토스트는 단일 슬롯이라 결과+경고를 따로 호출하면 뒤 호출이 앞 호출을 덮어 값이 안 보인다.)
+  s.setPendingSectionGround(null);
+  const hasWarnings = result.warnings.length > 0;
+  const baseMessage =
+    plan.measurements.length === 0
+      ? `${station.raw} 절토·성토 단면적이 0 입니다 — 두 선의 위치를 확인하세요`
+      : formatSectionToast(station.raw, result);
+  const message = hasWarnings
+    ? `${baseMessage} · 경고: ${result.warnings.join(' / ')}`
+    : baseMessage;
+  const tone = hasWarnings || plan.measurements.length === 0 ? 'warn' : 'success';
+  s.showToast(message, tone);
 }
 
 /**

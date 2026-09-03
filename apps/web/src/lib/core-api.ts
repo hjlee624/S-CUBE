@@ -78,6 +78,25 @@ export const isSelfIntersecting: (vertices: PVertex[]) => boolean = core.isSelfI
 export const polylineLength: (vertices: PVertex[], closed: boolean) => number = core.polylineLength;
 
 /**
+ * 두 프로파일(원지반선·계획선) 사이 절토/성토 단면적 (P3-13) — 도면 단위².
+ *
+ * cut_m2: 원지반이 계획선보다 위인 영역(절토), fill_m2: 계획선이 위인 영역(성토).
+ * 반환 필드명이 `_m2` 이지만 **도면 단위²** 다 — 미터 환산(×scale²)은 web 경계
+ * (lib/measure.ts applyScaleToRaw)에서 1회만. warnings 는 UI 경고 토스트에 쓴다.
+ */
+export interface ProfileAreaResult {
+  cut_m2: number;
+  fill_m2: number;
+  net_m2: number;
+  overlapRange: [number, number] | null;
+  warnings: string[];
+}
+
+/** 원지반선·계획선 정점열 → 절토/성토 단면적(도면 단위²) */
+export const areaBetweenProfiles: (ground: PVertex[], design: PVertex[]) => ProfileAreaResult =
+  core.areaBetweenProfiles;
+
+/**
  * 손상 좌표 진단 — core가 손상된(비유한·초대형) 좌표를 폐기·정제한 엔티티 수.
  *
  * 계약: core가 DrawingModel에 진단 필드 `sanitizedCount: number`를 추가했다. 값이 없거나

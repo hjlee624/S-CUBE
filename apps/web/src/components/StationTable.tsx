@@ -178,6 +178,8 @@ export function StationTable() {
   const measurements = useAppStore((s) => s.measurements);
   const activeId = useAppStore((s) => s.activeId);
   const selectedMeasurementIds = useAppStore((s) => s.selectedMeasurementIds);
+  const activeStationId = useAppStore((s) => s.activeStationId);
+  const setActiveStationId = useAppStore((s) => s.setActiveStationId);
 
   const addSection = useAppStore((s) => s.addSection);
   const removeSection = useAppStore((s) => s.removeSection);
@@ -370,6 +372,12 @@ export function StationTable() {
           <table className="w-full border-collapse text-xs">
             <thead className="sticky top-0 z-10 bg-zinc-950/95 backdrop-blur">
               <tr className="text-left text-[10px] uppercase tracking-wider text-zinc-500">
+                <th
+                  className="w-8 px-1 py-2 text-center font-semibold"
+                  title="단면적 취득 대상 측점"
+                >
+                  대상
+                </th>
                 <th className="px-3 py-2 font-semibold">측점</th>
                 <th className="px-3 py-2 text-right font-semibold">chainage</th>
                 {itemKeys.map((key) => (
@@ -383,11 +391,31 @@ export function StationTable() {
             <tbody>
               {rows.map((row) => {
                 const anyItem = [...row.byItem.values()][0];
+                // 이 행이 단면적 취득 대상(활성 측점)인가 — 행 내 임의 단면 id 가 앵커와 일치.
+                const rowActive =
+                  activeStationId !== null &&
+                  [...row.byItem.values()].some((s) => s.id === activeStationId);
                 return (
                   <tr
                     key={row.key}
-                    className="animate-row-in border-t border-zinc-900 hover:bg-zinc-900/30"
+                    className={`animate-row-in border-t border-zinc-900 hover:bg-zinc-900/30 ${
+                      rowActive ? 'bg-orange-500/5' : ''
+                    }`}
                   >
+                    {/* 단면적 취득 대상 라디오 — 활성 측점 선택 (canvas 클릭 자동 기입 대상) */}
+                    <td className="px-1 py-1 text-center align-top">
+                      <input
+                        type="radio"
+                        name="active-station"
+                        aria-label={`${row.raw} 단면적 취득 대상으로 선택`}
+                        title="이 측점을 단면적 취득(원지반·계획 클릭) 자동 기입 대상으로"
+                        checked={rowActive}
+                        onChange={() => {
+                          if (anyItem !== undefined) setActiveStationId(anyItem.id);
+                        }}
+                        className="mt-1 h-3 w-3 cursor-pointer accent-orange-400"
+                      />
+                    </td>
                     {/* 측점 raw — 인라인 편집 + 파싱 상태 */}
                     <td className="px-3 py-1 align-top">
                       <RawCell

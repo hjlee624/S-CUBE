@@ -17,6 +17,7 @@ const METHOD_LABEL: Record<Measurement['method'], string> = {
   hatch: 'HATCH',
   'auto-boundary': '자동경계',
   'entity-chain': '엔티티체인',
+  'profile-cut-fill': '절토/성토',
   dimension: '치수',
   manual: '수동',
 };

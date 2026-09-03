@@ -5,7 +5,12 @@
 
 import type { Vec2 } from '@s-cube/schema';
 import { useEffect, useRef, useState } from 'react';
-import { pickDimensionAt, pickMeasureAt, zoomToExtents } from '../canvas/actions.ts';
+import {
+  pickDimensionAt,
+  pickMeasureAt,
+  pickSectionProfileAt,
+  zoomToExtents,
+} from '../canvas/actions.ts';
 import { overlay } from '../canvas/overlay-state.ts';
 import { CanvasRenderer } from '../canvas/renderer.ts';
 import { findSnap } from '../canvas/snap.ts';
@@ -93,6 +98,9 @@ export function CanvasStage() {
       } else if (e.key === 'Escape') {
         if (s.pendingCalibration !== null || s.calibPoints.length > 0) {
           s.cancelCalibration();
+        } else if (s.pendingSectionGround !== null) {
+          // 단면적 취득 1단계 선택만 취소(도구는 유지 — 원지반선 재선택 가능).
+          s.setPendingSectionGround(null);
         } else if (s.activeTool !== 'pan') {
           s.setActiveTool('pan');
         }
@@ -143,6 +151,9 @@ export function CanvasStage() {
     } else if (s.activeTool === 'measure') {
       // Shift = 다중선택 추가(측정 누적). 단일 클릭이면 새 측정을 단일 선택.
       pickMeasureAt(world, e.shiftKey);
+    } else if (s.activeTool === 'section-area') {
+      // 2클릭 흐름: 1클릭 원지반선 → 2클릭 계획선 → cut/fill 자동 기입.
+      pickSectionProfileAt(world);
     }
   };
 

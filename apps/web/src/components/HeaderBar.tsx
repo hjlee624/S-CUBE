@@ -18,10 +18,19 @@ const TOOLS: readonly ToolDef[] = [
   { id: 'calibrate', label: '캘리브레이션', hint: '2점 클릭 → 실제 거리 입력' },
   { id: 'dim-check', label: '치수 대조', hint: 'DIMENSION 클릭 → 오차 확인' },
   { id: 'measure', label: '측정', hint: '폐합영역 클릭 → 면적 · 선 클릭 → 연장' },
+  {
+    id: 'section-area',
+    label: '단면적 취득',
+    hint: '측점 선택 → 원지반선 클릭 → 계획선 클릭 (절토·성토 자동 기입)',
+  },
 ];
 
 /** 캘리브레이션 완료 후에만 쓰는 도구 — 미완료 시 비활성 + 힌트 (FR-2.3) */
-const NEEDS_CALIBRATION: ReadonlySet<ToolId> = new Set<ToolId>(['dim-check', 'measure']);
+const NEEDS_CALIBRATION: ReadonlySet<ToolId> = new Set<ToolId>([
+  'dim-check',
+  'measure',
+  'section-area',
+]);
 
 export function HeaderBar() {
   const model = useAppStore((s) => s.model);
@@ -65,7 +74,9 @@ export function HeaderBar() {
                 needsCal
                   ? tool.id === 'measure'
                     ? '캘리브레이션 완료 후 측정 가능'
-                    : '캘리브레이션 완료 후 사용 가능'
+                    : tool.id === 'section-area'
+                      ? '캘리브레이션 완료 후 단면적 취득 가능'
+                      : '캘리브레이션 완료 후 사용 가능'
                   : tool.hint
               }
               onClick={() => setActiveTool(tool.id)}

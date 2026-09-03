@@ -35,7 +35,7 @@ describe('MeasurementSchema', () => {
     expect(parsed.kind).toBe('length');
   });
 
-  it('method 6종 전부 통과', () => {
+  it('method 7종 전부 통과', () => {
     const base = {
       id: 'm',
       drawingId: 'd',
@@ -51,11 +51,32 @@ describe('MeasurementSchema', () => {
       'hatch',
       'auto-boundary',
       'entity-chain',
+      'profile-cut-fill',
       'dimension',
       'manual',
     ]) {
       expect(MeasurementSchema.safeParse({ ...base, method }).success).toBe(true);
     }
+  });
+
+  it('profile-cut-fill 측정(cutFill 부호 구분) 통과 — FR-3.10', () => {
+    const m = {
+      id: 'meas-cf',
+      drawingId: 'dwg-1',
+      kind: 'area' as const,
+      value: 12.5,
+      rawValue: 12.5,
+      method: 'profile-cut-fill',
+      cutFill: 'cut',
+      sourceHandles: ['G1', 'D1'],
+      label: '절토 단면 No.8',
+      createdAt: '2026-08-28T00:00:00.000Z',
+    };
+    const parsed = MeasurementSchema.parse(m);
+    expect(parsed.cutFill).toBe('cut');
+    // cutFill 는 선택 필드 — 생략해도 통과, 잘못된 값은 거부
+    expect(MeasurementSchema.safeParse({ ...m, cutFill: undefined }).success).toBe(true);
+    expect(MeasurementSchema.safeParse({ ...m, cutFill: 'both' }).success).toBe(false);
   });
 
   it('잘못된 kind·method 거부', () => {

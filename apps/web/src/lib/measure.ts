@@ -94,6 +94,8 @@ export interface BuildMeasurementInput {
   /** 도면 단위 원값 — area: 도면단위², length: 도면단위 */
   rawValue: number;
   method: Measurement['method'];
+  /** method='profile-cut-fill'일 때 절토(cut)/성토(fill) 구분 */
+  cutFill?: Measurement['cutFill'];
   sourceHandles: string[];
   holes?: string[];
   label: string;
@@ -119,6 +121,7 @@ export function buildMeasurement(
     value,
     rawValue: input.rawValue,
     method: input.method,
+    ...(input.cutFill !== undefined ? { cutFill: input.cutFill } : {}),
     sourceHandles: input.sourceHandles,
     ...(input.holes !== undefined && input.holes.length > 0 ? { holes: input.holes } : {}),
     label: input.label,

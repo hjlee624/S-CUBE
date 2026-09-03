@@ -39,6 +39,7 @@ function flatFromTab(tab: DrawingTab): {
   pendingCalibration: null;
   dimCheck: null;
   activeTool: 'pan';
+  pendingSectionGround: null;
   selectedMeasurementIds: [];
 } {
   return {
@@ -54,6 +55,8 @@ function flatFromTab(tab: DrawingTab): {
     pendingCalibration: null,
     dimCheck: null,
     activeTool: 'pan',
+    // 단면적 취득 1단계 선택은 도면 handle 을 참조하므로 도면 경계에서 초기화한다.
+    pendingSectionGround: null,
     // 측정 자체는 measurements[]에 drawingId 태깅으로 보존되어 전환 후 돌아오면 그대로 보인다.
     // 다만 선택 하이라이트는 도면 경계에서 초기화한다(다른 도면 handle을 가리키지 않도록).
     selectedMeasurementIds: [],
@@ -128,6 +131,7 @@ export function closeDrawing(id: string): void {
       pendingCalibration: null,
       dimCheck: null,
       activeTool: 'pan',
+      pendingSectionGround: null,
       selectedMeasurementIds: [],
     });
     setSceneModel(null);

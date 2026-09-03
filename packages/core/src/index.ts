@@ -36,6 +36,7 @@ export {
   mat3FromInsert,
 } from './geometry/mat3.ts';
 export { bulgeToArc, distance, polylineLength } from './geometry/primitives.ts';
+export { areaBetweenProfiles, type ProfileAreaResult } from './geometry/profile-area.ts';
 export { isSelfIntersecting } from './geometry/validity.ts';
 // quantity/
 export {

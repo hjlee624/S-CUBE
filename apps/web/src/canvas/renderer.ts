@@ -25,6 +25,7 @@ const ACCENT_DIM = 'rgba(52, 211, 153, 0.45)';
 const SNAP_COLOR = '#fbbf24'; // amber-400
 const DIM_HILITE = '#f472b6'; // pink-400
 const MEASURE_HILITE = '#34d399'; // emerald-400 — 측정 선택 하이라이트
+const GROUND_HILITE = '#fb923c'; // orange-400 — 단면적 취득 1단계 원지반선 선택 하이라이트
 
 /** 레이어명 → 색상 캐시 (모델 단위) */
 let layerColorCache: { model: DrawingModel; colors: Map<string, string> } | null = null;
@@ -127,6 +128,8 @@ export class CanvasRenderer {
       this.drawEntities(ctx, model, state.layerVisibility, vp, size, dpr);
       // 선택된 측정의 원본 엔티티 하이라이트 (스크린 스페이스, 엔티티와 동일 좌표계 글로우)
       this.drawMeasureHighlights(ctx, model, vp, size, dpr);
+      // 단면적 취득 1단계: 선택된 원지반선을 서로 다른 색(orange)으로 하이라이트
+      this.drawSectionGroundHighlight(ctx, model, vp, size, dpr);
     }
 
     // 오버레이는 화면 좌표계에서
@@ -262,6 +265,52 @@ export class CanvasRenderer {
         ctx.restore();
       }
       this.drawEntity(ctx, e, MEASURE_HILITE, vp, size);
+    }
+    ctx.restore();
+    ctx.shadowBlur = 0;
+  }
+
+  /**
+   * 단면적 취득(P3-13) 1단계 하이라이트 — 선택된 원지반선을 측정 하이라이트(emerald)와
+   * 구분되는 orange 글로우로 덧그린다. 계획선은 두 번째 클릭 시 확정되며, 그때 생성된
+   * 측정의 sourceHandles(원지반+계획) 가 emerald 로 자동 하이라이트된다(drawMeasureHighlights).
+   *
+   * 성능경로 유지: pendingSectionGround 가 null이면 즉시 반환(오버헤드 0). R-tree 컬링 후보
+   * 안에서 handle 매칭만 추가로 그린다.
+   */
+  private drawSectionGroundHighlight(
+    ctx: CanvasRenderingContext2D,
+    model: DrawingModel,
+    vp: Viewport,
+    size: CanvasSize,
+    dpr: number,
+  ): void {
+    const state = useAppStore.getState();
+    const pending = state.pendingSectionGround;
+    if (pending === null) return;
+    const handle = pending.handle;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = GROUND_HILITE;
+    ctx.shadowColor = GROUND_HILITE;
+    ctx.shadowBlur = 8;
+    ctx.globalAlpha = 0.95;
+
+    const query = viewportWorldBounds(vp, size, 64);
+    const visibleIdx: number[] =
+      scene.index !== null && scene.model === model
+        ? scene.index.search(query).map((it) => it.i)
+        : model.entities.map((_, i) => i);
+    for (const i of scene.model === model ? scene.unboundedIndices : []) visibleIdx.push(i);
+
+    for (const i of visibleIdx) {
+      const e = model.entities[i];
+      if (e === undefined || e.handle !== handle) continue;
+      this.drawEntity(ctx, e, GROUND_HILITE, vp, size);
     }
     ctx.restore();
     ctx.shadowBlur = 0;
