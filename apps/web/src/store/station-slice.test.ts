@@ -6,6 +6,7 @@
 import type { Station, StationSection } from '@s-cube/schema';
 import { describe, expect, it } from 'vitest';
 import {
+  accumulateSectionArea,
   addItemKey,
   addSection,
   assignMeasurement,
@@ -44,6 +45,130 @@ describe('addSection / removeSection', () => {
   it('해당 id 만 제거', () => {
     const list = [sec('a', '절토', 10), sec('b', '절토', 20)];
     expect(removeSection(list, 'a').map((s) => s.id)).toEqual(['b']);
+  });
+});
+
+describe('accumulateSectionArea — 도면 면적 취득 누적 (RW-22)', () => {
+  const st = (raw: string, disc: 'pre' | 'post' | null = null): Station => ({
+    raw,
+    no: 0,
+    plus_m: 0,
+    chainage_m: 0,
+    discontinuity: disc,
+  });
+  const mk = (
+    id: string,
+    itemKey: string,
+    area_m2: number,
+    raw: string,
+    extra: Partial<StationSection> = {},
+  ): StationSection => ({ id, station: st(raw), itemKey, area_m2, ...extra });
+
+  it('대상 셀 없으면 새 단면 생성 (sourceMeasurementIds=[m])', () => {
+    const r = accumulateSectionArea([], {
+      station: st('No.8'),
+      itemKey: '절토',
+      addValue: 12,
+      measurementId: 'm1',
+      additive: false,
+      newSectionId: 'new',
+    });
+    expect(r.sections).toHaveLength(1);
+    expect(r.sections[0]).toMatchObject({
+      id: 'new',
+      itemKey: '절토',
+      area_m2: 12,
+      measurementId: 'm1',
+      sourceMeasurementIds: ['m1'],
+    });
+    expect(r.total_m2).toBe(12);
+    expect(r.sourceCount).toBe(1);
+  });
+
+  it('additive=false → 기존 셀 값 교체(출처 초기화)', () => {
+    const list = [mk('s1', '절토', 10, 'No.8', { measurementId: 'old', sourceMeasurementIds: ['old'] })];
+    const r = accumulateSectionArea(list, {
+      station: st('No.8'),
+      itemKey: '절토',
+      addValue: 7,
+      measurementId: 'm2',
+      additive: false,
+      newSectionId: 'x',
+    });
+    expect(r.sections[0]?.area_m2).toBe(7);
+    expect(r.sections[0]?.sourceMeasurementIds).toEqual(['m2']);
+    expect(r.sourceCount).toBe(1);
+  });
+
+  it('additive=true → 기존 값에 합산 + 출처 append', () => {
+    const list = [mk('s1', '절토', 10, 'No.8', { measurementId: 'old', sourceMeasurementIds: ['old'] })];
+    const r = accumulateSectionArea(list, {
+      station: st('No.8'),
+      itemKey: '절토',
+      addValue: 5,
+      measurementId: 'm2',
+      additive: true,
+      newSectionId: 'x',
+    });
+    expect(r.sections[0]?.area_m2).toBe(15);
+    expect(r.sections[0]?.sourceMeasurementIds).toEqual(['old', 'm2']);
+    expect(r.total_m2).toBe(15);
+    expect(r.sourceCount).toBe(2);
+  });
+
+  it('additive=true 이고 기존이 단일 measurementId(구형) → [old,new]로 승격', () => {
+    const list = [mk('s1', '절토', 8, 'No.8', { measurementId: 'old' })];
+    const r = accumulateSectionArea(list, {
+      station: st('No.8'),
+      itemKey: '절토',
+      addValue: 2,
+      measurementId: 'm2',
+      additive: true,
+      newSectionId: 'x',
+    });
+    expect(r.sections[0]?.area_m2).toBe(10);
+    expect(r.sections[0]?.sourceMeasurementIds).toEqual(['old', 'm2']);
+  });
+
+  it('같은 raw 라도 itemKey 다르면 별도 셀 생성', () => {
+    const list = [mk('s1', '절토', 10, 'No.8', { measurementId: 'old' })];
+    const r = accumulateSectionArea(list, {
+      station: st('No.8'),
+      itemKey: '성토',
+      addValue: 4,
+      measurementId: 'm2',
+      additive: true,
+      newSectionId: 'new',
+    });
+    expect(r.sections).toHaveLength(2);
+    expect(r.sections[1]).toMatchObject({ itemKey: '성토', area_m2: 4 });
+  });
+
+  it('discontinuity 다르면 별도 셀 (전/후 구분)', () => {
+    const list = [mk('s1', '절토', 10, 'No.8', {})];
+    // 위 mk 는 discontinuity=null. post 로 취득하면 다른 셀이어야 한다.
+    const r = accumulateSectionArea(list, {
+      station: st('No.8', 'post'),
+      itemKey: '절토',
+      addValue: 3,
+      measurementId: 'm2',
+      additive: true,
+      newSectionId: 'new',
+    });
+    expect(r.sections).toHaveLength(2);
+  });
+
+  it('원본 배열 불변', () => {
+    const list = [mk('s1', '절토', 10, 'No.8', {})];
+    accumulateSectionArea(list, {
+      station: st('No.8'),
+      itemKey: '절토',
+      addValue: 5,
+      measurementId: 'm2',
+      additive: true,
+      newSectionId: 'x',
+    });
+    expect(list[0]?.area_m2).toBe(10);
   });
 });
 

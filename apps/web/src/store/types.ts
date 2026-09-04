@@ -202,6 +202,19 @@ export interface StationSlice {
   updateSectionArea: (id: string, area_m2: number) => void;
   /** 측정값을 단면에 할당 (P3-12) — area_m2·measurementId 동시 설정 */
   assignMeasurementToSection: (id: string, measurementId: string, area_m2: number) => void;
+  /**
+   * 면적 취득값을 대상 셀에 기입/누적 (RW-22) — 도면 영역 클릭 자동기입의 저장 진입점.
+   * anchorSectionId 로 측점(행)을 역추적하고, itemKey 열의 단면을 생성/갱신한다.
+   * additive=true면 기존 area_m2 에 더하고 sourceMeasurementIds 에 append(누적 선택),
+   * false면 이 측정값으로 교체한다. 반환값은 기입 후 그 셀의 누적 면적(㎡)과 출처 개수.
+   */
+  acquireAreaIntoCell: (params: {
+    anchorSectionId: string;
+    itemKey: string;
+    area_m2: number;
+    measurementId: string;
+    additive: boolean;
+  }) => { total_m2: number; sourceCount: number } | null;
   /** 측점 원표기(raw) 수정 — 재파싱해 station 갱신 */
   updateSectionRaw: (id: string, raw: string) => void;
   /** 측점 간격 변경 — 기존 단면 chainage 를 raw 로 되파싱 */
@@ -327,6 +340,11 @@ export interface UiSlice {
    * 단위이므로, 그 행에 속한 임의 단면 id 하나를 앵커로 보관해 station 을 역추적한다.
    */
   activeStationId: string | null;
+  /**
+   * 면적 누적 취득 대상 열(itemKey) (RW-22). activeStationId(행 앵커)와 함께 대상 셀을
+   * (측점 행, 항목 열)로 확정한다. null이면 일반 측정 모드(셀 자동기입 안 함).
+   */
+  activeItemKey: string | null;
   /** 하단 측점·체적 도크 열림 여부 (Phase 3-C) */
   stationDockOpen: boolean;
   /** 하단 도크 활성 탭 (Phase 3-C) */
@@ -340,6 +358,11 @@ export interface UiSlice {
   setPendingSectionGround: (ground: PendingSectionGround | null) => void;
   /** 자동 기입 대상 활성 측점 설정(측점 행 앵커 단면 id). null이면 선택 해제 */
   setActiveStationId: (id: string | null) => void;
+  /**
+   * 면적 누적 취득 대상 셀 설정 (RW-22) — 행 앵커 단면 id + 항목 열을 함께 지정한다.
+   * 둘 중 하나라도 null이면 대상 해제(일반 측정 모드).
+   */
+  setAreaTargetCell: (anchorSectionId: string | null, itemKey: string | null) => void;
   showToast: (message: string, tone?: ToastState['tone']) => void;
   dismissToast: (id: number) => void;
   showDwgGuide: (file: File, guide: string) => void;

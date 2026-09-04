@@ -23,8 +23,13 @@ export const StationSectionSchema = z.object({
   /** '절토', '성토', '표토제거' 등 */
   itemKey: z.string().min(1),
   area_m2: z.number().nonnegative(),
-  /** 도면 측정 출처 (수동 입력이면 undefined) */
+  /** 도면 측정 출처 (수동 입력이면 undefined). 누적일 때는 sourceMeasurementIds[0] 과 동일 */
   measurementId: z.string().optional(),
+  /**
+   * 누적 면적 취득 출처 (RW-22) — 여러 폐합 영역을 합산해 한 셀에 기입할 때, 기여한
+   * 모든 면적 측정 id 목록(역추적). area_m2 = Σ 각 측정 value. 단일/수동이면 undefined.
+   */
+  sourceMeasurementIds: z.array(z.string()).optional(),
   note: z.string().optional(),
 });
 

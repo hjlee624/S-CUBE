@@ -69,19 +69,24 @@ function discLabel(d: 'pre' | 'post' | null): string | null {
   return null;
 }
 
-/** 단면적 셀 — 인라인 편집 + 측정 할당 + 이상 배지 */
+/** 단면적 셀 — 인라인 편집 + 도면 취득 대상 지정 + 측정 할당 + 이상 배지 */
 function AreaCell({
   section,
   anomaly,
   onEditArea,
   onAssign,
   assignableCount,
+  isTarget,
+  onToggleTarget,
 }: {
   section: StationSection | undefined;
   anomaly: Anomaly | undefined;
   onEditArea: (area_m2: number) => void;
   onAssign: () => void;
   assignableCount: number;
+  /** 이 셀이 도면 면적 취득 대상(클릭 자동기입) 셀인가 */
+  isTarget: boolean;
+  onToggleTarget: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -93,8 +98,11 @@ function AreaCell({
   };
 
   const hasValue = section !== undefined;
-  const badgeTone =
-    anomaly !== undefined
+  // 누적 취득(여러 폐합영역 합산) 개수 — 2 이상이면 배지로 노출.
+  const sourceCount = section?.sourceMeasurementIds?.length ?? 0;
+  const badgeTone = isTarget
+    ? 'border-orange-500/70 bg-orange-500/10 ring-1 ring-orange-500/40'
+    : anomaly !== undefined
       ? 'border-amber-700/60 bg-amber-950/25'
       : hasValue
         ? 'border-zinc-800 bg-zinc-900/40'
@@ -136,8 +144,33 @@ function AreaCell({
         )}
 
         <div className="mt-0.5 flex items-center justify-between gap-1">
-          {/* 측정 출처 표시 */}
-          {section?.measurementId !== undefined ? (
+          {/* 취득 대상 토글 — 도면 영역 클릭 시 이 셀에 자동 기입 */}
+          <button
+            type="button"
+            onClick={onToggleTarget}
+            title={
+              isTarget
+                ? '취득 대상 해제 (도면 클릭 자동기입 중지)'
+                : '이 셀을 도면 면적 취득 대상으로 — 도면에서 영역 클릭 시 자동 기입(Shift 누적)'
+            }
+            className={`rounded px-1.5 py-px text-[9px] font-semibold transition-colors duration-150 ${
+              isTarget
+                ? 'bg-orange-500/25 text-orange-300'
+                : 'bg-zinc-800 text-zinc-400 hover:bg-orange-500/15 hover:text-orange-300'
+            }`}
+          >
+            {isTarget ? '◉ 취득중' : '◎ 취득'}
+          </button>
+
+          {/* 측정 출처 표시 — 누적이면 영역 개수 */}
+          {sourceCount > 1 ? (
+            <span
+              className="rounded-full bg-emerald-500/10 px-1.5 py-px text-[9px] font-medium text-emerald-400"
+              title={`${sourceCount}개 폐합영역 합산`}
+            >
+              {sourceCount}영역
+            </span>
+          ) : section?.measurementId !== undefined ? (
             <span
               className="rounded-full bg-emerald-500/10 px-1.5 py-px text-[9px] font-medium text-emerald-400"
               title={`측정 출처: ${section.measurementId}`}
@@ -179,7 +212,11 @@ export function StationTable() {
   const activeId = useAppStore((s) => s.activeId);
   const selectedMeasurementIds = useAppStore((s) => s.selectedMeasurementIds);
   const activeStationId = useAppStore((s) => s.activeStationId);
-  const setActiveStationId = useAppStore((s) => s.setActiveStationId);
+  const activeItemKey = useAppStore((s) => s.activeItemKey);
+  const setAreaTargetCell = useAppStore((s) => s.setAreaTargetCell);
+  const activeTool = useAppStore((s) => s.activeTool);
+  const setActiveTool = useAppStore((s) => s.setActiveTool);
+  const calibration = useAppStore((s) => s.calibration);
 
   const addSection = useAppStore((s) => s.addSection);
   const removeSection = useAppStore((s) => s.removeSection);
@@ -414,6 +451,47 @@ export function StationTable() {
         </div>
       </div>
 
+      {/* RW-22: 도면 면적 취득 대상 안내 — 대상 셀 지정 시 도면 클릭으로 자동기입 */}
+      {(() => {
+        const targetSection =
+          activeStationId !== null ? sections.find((s) => s.id === activeStationId) : undefined;
+        if (targetSection === undefined || activeItemKey === null) return null;
+        const measureReady = calibration !== null;
+        return (
+          <div className="flex flex-wrap items-center gap-2 border-b border-orange-500/20 bg-orange-500/5 px-3 py-1.5 text-[11px]">
+            <span className="rounded-full bg-orange-500/20 px-2 py-0.5 font-semibold text-orange-300">
+              취득 대상
+            </span>
+            <span className="font-mono text-zinc-200">
+              {targetSection.station.raw} · {activeItemKey}
+            </span>
+            <span className="text-zinc-400">
+              {measureReady
+                ? activeTool === 'measure'
+                  ? '도면에서 영역(폐합)을 클릭 → 자동 기입 · Shift+클릭으로 누적 합산'
+                  : '측정 도구로 전환 후 도면 영역을 클릭하세요'
+                : '먼저 캘리브레이션(축척)이 필요합니다'}
+            </span>
+            {measureReady && activeTool !== 'measure' && (
+              <button
+                type="button"
+                onClick={() => setActiveTool('measure')}
+                className="rounded-md bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-zinc-950 transition-all duration-150 hover:bg-emerald-400 active:scale-[0.97]"
+              >
+                측정 도구 켜기
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setAreaTargetCell(null, null)}
+              className="ml-auto rounded-md border border-zinc-700 px-2 py-0.5 text-[10px] text-zinc-400 transition-colors duration-150 hover:border-zinc-600 hover:text-zinc-200"
+            >
+              대상 해제
+            </button>
+          </div>
+        );
+      })()}
+
       {/* 테이블 */}
       <div className="min-h-0 flex-1 overflow-auto">
         {rows.length === 0 ? (
@@ -424,12 +502,6 @@ export function StationTable() {
           <table className="w-full border-collapse text-xs">
             <thead className="sticky top-0 z-10 bg-zinc-950/95 backdrop-blur">
               <tr className="text-left text-[10px] uppercase tracking-wider text-zinc-500">
-                <th
-                  className="w-8 px-1 py-2 text-center font-semibold"
-                  title="단면적 취득 대상 측점"
-                >
-                  대상
-                </th>
                 <th className="px-3 py-2 font-semibold">측점</th>
                 <th className="px-3 py-2 text-right font-semibold">chainage</th>
                 {itemKeys.map((key) => (
@@ -443,10 +515,9 @@ export function StationTable() {
             <tbody>
               {rows.map((row) => {
                 const anyItem = [...row.byItem.values()][0];
-                // 이 행이 단면적 취득 대상(활성 측점)인가 — 행 내 임의 단면 id 가 앵커와 일치.
-                const rowActive =
-                  activeStationId !== null &&
-                  [...row.byItem.values()].some((s) => s.id === activeStationId);
+                const anchorId = anyItem?.id ?? null;
+                // 이 행에 취득 대상 셀이 있는가 — 앵커 id 가 활성 대상과 일치.
+                const rowActive = activeStationId !== null && activeStationId === anchorId;
                 return (
                   <tr
                     key={row.key}
@@ -454,20 +525,6 @@ export function StationTable() {
                       rowActive ? 'bg-orange-500/5' : ''
                     }`}
                   >
-                    {/* 단면적 취득 대상 라디오 — 활성 측점 선택 (canvas 클릭 자동 기입 대상) */}
-                    <td className="px-1 py-1 text-center align-top">
-                      <input
-                        type="radio"
-                        name="active-station"
-                        aria-label={`${row.raw} 단면적 취득 대상으로 선택`}
-                        title="이 측점을 단면적 취득(원지반·계획 클릭) 자동 기입 대상으로"
-                        checked={rowActive}
-                        onChange={() => {
-                          if (anyItem !== undefined) setActiveStationId(anyItem.id);
-                        }}
-                        className="mt-1 h-3 w-3 cursor-pointer accent-orange-400"
-                      />
-                    </td>
                     {/* 측점 raw — 인라인 편집 + 파싱 상태 */}
                     <td className="px-3 py-1 align-top">
                       <RawCell
@@ -485,6 +542,10 @@ export function StationTable() {
                     </td>
                     {itemKeys.map((key) => {
                       const sec = row.byItem.get(key);
+                      const isTarget =
+                        anchorId !== null &&
+                        activeStationId === anchorId &&
+                        activeItemKey === key;
                       return (
                         <AreaCell
                           key={key}
@@ -493,6 +554,11 @@ export function StationTable() {
                           assignableCount={areaMeasurements.length}
                           onEditArea={(area) => editCell(row, key, area)}
                           onAssign={() => assignCell(row, key)}
+                          isTarget={isTarget}
+                          onToggleTarget={() => {
+                            if (isTarget) setAreaTargetCell(null, null);
+                            else if (anchorId !== null) setAreaTargetCell(anchorId, key);
+                          }}
                         />
                       );
                     })}

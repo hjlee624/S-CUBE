@@ -159,6 +159,29 @@ export function pickMeasureAt(worldPos: Vec2, additive = false): void {
   if (additive) {
     useAppStore.setState({ selectedMeasurementIds: [...priorSelection, measurement.id] });
   }
+
+  // RW-22: 면적 대상 셀이 지정돼 있으면 이 면적을 측점 셀에 자동 기입/누적한다.
+  // 반자동 핵심 — 사람은 도면 영역만 클릭, 면적 산정·축척²·셀 기입은 도구가 수행.
+  // 일반 클릭 = 이 영역으로 교체, Shift+클릭 = 기존 값에 누적(여러 폐합영역 합산).
+  if (raw.kind === 'area' && s.activeStationId !== null && s.activeItemKey !== null) {
+    const res = s.acquireAreaIntoCell({
+      anchorSectionId: s.activeStationId,
+      itemKey: s.activeItemKey,
+      area_m2: measurement.value,
+      measurementId: measurement.id,
+      additive,
+    });
+    // 경고(비폐합·0·자기교차)가 없을 때만 성공 토스트로 결과를 알린다(경고는 유지).
+    const areaClean = raw.openGap === null && !raw.zeroArea && !raw.selfIntersecting;
+    if (res !== null && areaClean) {
+      s.showToast(
+        res.sourceCount > 1
+          ? `${s.activeItemKey} 누적 ${res.total_m2.toFixed(2)}㎡ (${res.sourceCount}영역 합산)`
+          : `${s.activeItemKey} ${res.total_m2.toFixed(2)}㎡ 자동 기입 · Shift+클릭으로 영역 누적`,
+        'success',
+      );
+    }
+  }
 }
 
 /** 단면적 취득 프로파일 픽킹 허용거리 (화면 px) — 선(line·open polyline) 근접 판정. */

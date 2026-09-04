@@ -9,7 +9,7 @@
  * 순수 상태 전이(단면 추가·단면적 수정·삭제·측정 할당·항목/간격 설정)는 아래 순수 함수로
  * 분리해 테스트한다. 이 슬라이스는 canvas 를 import 하지 않는다.
  */
-import type { StationSection } from '@s-cube/schema';
+import type { Station, StationSection } from '@s-cube/schema';
 import type { StateCreator } from 'zustand';
 import { parseStation } from '../lib/station-derive.ts';
 import type { AppState, StationSlice } from './types.ts';
@@ -61,6 +61,58 @@ export function assignMeasurement(
   area_m2: number,
 ): StationSection[] {
   return list.map((s) => (s.id === id ? { ...s, measurementId, area_m2 } : s));
+}
+
+/**
+ * 면적 취득값을 대상 (측점,itemKey) 셀에 기입/누적 (순수, RW-22).
+ *
+ * 도면에서 폐합 영역을 클릭하면 그 면적(㎡)이 이 함수를 통해 대상 셀에 들어간다.
+ * - additive=false: 이 측정값으로 교체(단일 영역 취득).
+ * - additive=true : 기존 area_m2 에 더하고 sourceMeasurementIds 에 append(누적 선택 — 여러
+ *   폐합 영역을 합산). 역추적을 위해 기여한 모든 측정 id 를 보존한다.
+ * 대상 (측점,itemKey) 셀이 없으면 새 단면을 생성한다.
+ */
+export function accumulateSectionArea(
+  list: StationSection[],
+  params: {
+    station: Station;
+    itemKey: string;
+    addValue: number;
+    measurementId: string;
+    additive: boolean;
+    newSectionId: string;
+  },
+): { sections: StationSection[]; total_m2: number; sourceCount: number } {
+  const { station, itemKey, addValue, measurementId, additive, newSectionId } = params;
+  const target = list.find(
+    (s) =>
+      s.itemKey === itemKey &&
+      s.station.raw === station.raw &&
+      s.station.discontinuity === station.discontinuity,
+  );
+  if (target === undefined) {
+    const section: StationSection = {
+      id: newSectionId,
+      station,
+      itemKey,
+      area_m2: addValue,
+      measurementId,
+      sourceMeasurementIds: [measurementId],
+    };
+    return { sections: [...list, section], total_m2: addValue, sourceCount: 1 };
+  }
+  const priorSources = additive
+    ? (target.sourceMeasurementIds ??
+      (target.measurementId !== undefined ? [target.measurementId] : []))
+    : [];
+  const total_m2 = (additive ? target.area_m2 : 0) + addValue;
+  const sources = [...priorSources, measurementId];
+  const sections = list.map((s) =>
+    s.id === target.id
+      ? { ...s, area_m2: total_m2, measurementId: sources[0], sourceMeasurementIds: sources }
+      : s,
+  );
+  return { sections, total_m2, sourceCount: sources.length };
 }
 
 /** 단면의 측점 원표기(raw) 수정 — 재파싱해 station 갱신 (순수) */
@@ -149,6 +201,30 @@ export const createStationSlice: StateCreator<AppState, [], [], StationSlice> = 
   assignMeasurementToSection: (id, measurementId, area_m2) => {
     set((s) => ({ sections: assignMeasurement(s.sections, id, measurementId, area_m2) }));
     get().recomputeTakeoff();
+  },
+
+  acquireAreaIntoCell: ({ anchorSectionId, itemKey, area_m2, measurementId, additive }) => {
+    const anchor = get().sections.find((s) => s.id === anchorSectionId);
+    const station = anchor?.station;
+    if (station === undefined) return null;
+    const result = accumulateSectionArea(get().sections, {
+      station,
+      itemKey,
+      addValue: area_m2,
+      measurementId,
+      additive,
+      newSectionId: crypto.randomUUID(),
+    });
+    set({ sections: result.sections });
+    get().recomputeTakeoff();
+    get().addHistoryEntry({
+      actor: get().author || '사용자',
+      kind: 'section',
+      detail: `면적 취득: ${station.raw} · ${itemKey} ${result.total_m2.toFixed(2)}㎡${
+        result.sourceCount > 1 ? ` (${result.sourceCount}영역 합산)` : ''
+      }`,
+    });
+    return { total_m2: result.total_m2, sourceCount: result.sourceCount };
   },
 
   updateSectionRaw: (id, raw) => {

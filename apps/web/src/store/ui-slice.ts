@@ -13,6 +13,7 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   dwgGuide: null,
   pendingSectionGround: null,
   activeStationId: null,
+  activeItemKey: null,
   stationDockOpen: false,
   stationDockTab: 'table',
   workbenchOpen: false,
@@ -50,6 +51,13 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   setPendingSectionGround: (ground) => set({ pendingSectionGround: ground }),
 
   setActiveStationId: (id) => set({ activeStationId: id }),
+
+  setAreaTargetCell: (anchorSectionId, itemKey) =>
+    set(
+      anchorSectionId === null || itemKey === null
+        ? { activeStationId: null, activeItemKey: null }
+        : { activeStationId: anchorSectionId, activeItemKey: itemKey },
+    ),
 
   showToast: (message, tone = 'info') => {
     toastSeq += 1;
