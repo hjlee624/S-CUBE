@@ -40,6 +40,33 @@
   --color-emerald-300: #047857; /* emerald-700 — 액센트 텍스트 주 색 */
   --color-emerald-400: #059669; /* emerald-600 */
 
+  /* amber (경고·미설정 배지·토스트 warn) */
+  --color-amber-100: #b45309;
+  --color-amber-200: #b45309;
+  --color-amber-300: #b45309;
+  --color-amber-400: #d97706;
+  /* orange (면적 취득 대상 하이라이트) */
+  --color-orange-200: #c2410c;
+  --color-orange-300: #c2410c;
+  --color-orange-400: #ea580c;
+  /* red (오류·삭제·토스트 error) */
+  --color-red-100: #b91c1c;
+  --color-red-200: #b91c1c;
+  --color-red-300: #b91c1c;
+  --color-red-400: #dc2626;
+  /* violet (불연속 후단 배지) */
+  --color-violet-200: #6d28d9;
+  --color-violet-300: #6d28d9;
+  --color-violet-400: #7c3aed;
+  /* sky (불연속 전단 배지 등) */
+  --color-sky-200: #0369a1;
+  --color-sky-300: #0369a1;
+  --color-sky-400: #0284c7;
+  /* rose·pink·teal (기타 배지·로고 그라디언트) */
+  --color-rose-300: #be123c;
+  --color-pink-300: #be185d;
+  --color-teal-300: #0f766e;
+
   /* ── 이징 토큰 (레퍼런스: Krepling expo-out, RedSun back-out, Cartesia in-expo) ── */
   --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
@@ -322,10 +349,30 @@ body,
   --color-zinc-800: #27272a;
   --color-zinc-900: #18181b;
   --color-zinc-950: #09090b;
-  /* 어두운 캔버스 위 오버레이는 밝은 emerald 텍스트 유지 (전역 진한 remap 되돌림) */
+  /* 어두운 캔버스 위 오버레이는 밝은 액센트 텍스트 유지 (전역 진한 remap 되돌림) */
   --color-emerald-200: #a7f3d0;
   --color-emerald-300: #6ee7b7;
   --color-emerald-400: #34d399;
+  --color-amber-100: #fef3c7;
+  --color-amber-200: #fde68a;
+  --color-amber-300: #fcd34d;
+  --color-amber-400: #fbbf24;
+  --color-orange-200: #fed7aa;
+  --color-orange-300: #fdba74;
+  --color-orange-400: #fb923c;
+  --color-red-100: #fee2e2;
+  --color-red-200: #fecaca;
+  --color-red-300: #fca5a5;
+  --color-red-400: #f87171;
+  --color-violet-200: #ddd6fe;
+  --color-violet-300: #c4b5fd;
+  --color-violet-400: #a78bfa;
+  --color-sky-200: #bae6fd;
+  --color-sky-300: #7dd3fc;
+  --color-sky-400: #38bdf8;
+  --color-rose-300: #fda4af;
+  --color-pink-300: #f9a8d5;
+  --color-teal-300: #5eead4;
 }
 
 /* 캔버스 위 커서·스크롤 관성 억제 */
