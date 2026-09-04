@@ -217,6 +217,52 @@ describe('dwgDatabaseToDxf — HATCH 경계 방출 (RW-24)', () => {
     }
   });
 
+  it('폴리라인 경계 HATCH(vertices) → 파싱', () => {
+    const { dxf } = dwgDatabaseToDxf(
+      db([
+        {
+          type: 'HATCH',
+          handle: 'HP',
+          layer: '0',
+          boundaryPaths: [
+            {
+              boundaryPathTypeFlag: 3, // external + polyline
+              hasBulge: false,
+              isClosed: true,
+              numberOfVertices: 3,
+              vertices: [
+                { x: 0, y: 0 },
+                { x: 10, y: 0 },
+                { x: 5, y: 8 },
+              ],
+            },
+          ],
+        },
+      ]),
+    );
+    const model = parseAndNormalizeDxf(dxf);
+    const hatch = model.entities.find((e) => e.kind === 'hatch');
+    expect(hatch).toBeDefined();
+    expect(hatch?.kind === 'hatch' && hatch.loops[0]?.vertices.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('spline edge 포함 HATCH 는 건너뛴다', () => {
+    const { emitted, skipped } = dwgDatabaseToDxf(
+      db([
+        {
+          type: 'HATCH',
+          handle: 'HS',
+          layer: '0',
+          boundaryPaths: [
+            { boundaryPathTypeFlag: 1, edges: [{ type: 4, degree: 3, controlPoints: [] }] },
+          ],
+        },
+      ]),
+    );
+    expect(emitted).toBe(0);
+    expect(skipped.HATCH).toBe(1);
+  });
+
   it('boundaryPaths 없는 HATCH 는 건너뛴다(skipped 집계)', () => {
     const { emitted, skipped } = dwgDatabaseToDxf(db([{ type: 'HATCH', handle: 'H', layer: '0' }]));
     expect(emitted).toBe(0);

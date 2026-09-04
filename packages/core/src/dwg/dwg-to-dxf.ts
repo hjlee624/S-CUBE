@@ -264,31 +264,54 @@ function emitEntity(w: DxfWriter, e: DwgLikeEntity): boolean {
       return true;
     }
     case 'HATCH': {
-      // 경계 경로(edge-type)를 parse-hatch.ts 가 읽는 그룹코드로 방출.
-      // line(1)·arc(2) edge 만 신뢰 방출 — 미지원 edge(ellipse/spline)가 섞이면 이 HATCH skip
-      // (부분 방출로 파서 스트림이 오정렬되는 것 방지).
+      // 경계를 parse-hatch.ts 가 읽는 그룹코드로 방출. 폴리라인 경계(flag&2, vertices) +
+      // edge 경계(line·arc·ellipse). spline·미지 edge 가 있으면 이 HATCH 전체 skip
+      // (부분 방출로 파서 스트림 오정렬 방지). 지층·토공 채움 경계 복원.
       const paths = Array.isArray(e.boundaryPaths)
         ? (e.boundaryPaths as Record<string, unknown>[])
         : [];
       if (paths.length === 0) return false;
-      const pathEdges = paths.map((p) =>
-        Array.isArray(p.edges) ? (p.edges as Record<string, unknown>[]) : [],
-      );
-      const allSupported = pathEdges.every(
-        (edges) => edges.length > 0 && edges.every((ed) => num(ed.type) === 1 || num(ed.type) === 2),
-      );
-      if (!allSupported) return false;
+      const isPolyPath = (p: Record<string, unknown>): boolean =>
+        (num(p.boundaryPathTypeFlag) & 2) !== 0 &&
+        Array.isArray(p.vertices) &&
+        (p.vertices as unknown[]).length >= 2;
+      const supported = paths.every((p) => {
+        if (isPolyPath(p)) return true;
+        const edges = Array.isArray(p.edges) ? (p.edges as Record<string, unknown>[]) : [];
+        return (
+          edges.length > 0 &&
+          edges.every((ed) => {
+            const t = num(ed.type);
+            return t === 1 || t === 2 || t === 3;
+          })
+        );
+      });
+      if (!supported) return false;
       emitCommon(w, e, 'HATCH');
       w.g(91, paths.length);
-      for (let pi = 0; pi < paths.length; pi++) {
-        const path = paths[pi] as Record<string, unknown>;
-        const edges = pathEdges[pi] as Record<string, unknown>[];
-        // 92: path type flag — 폴리라인 비트(2) 제거해 edge-type 로 강제.
+      for (const path of paths) {
+        if (isPolyPath(path)) {
+          // 폴리라인 경계: 72(has_bulge) 73(is_closed) 93(정점수) 10/20[/42]
+          const verts = path.vertices as Record<string, unknown>[];
+          const hasBulge = path.hasBulge === true || verts.some((v) => num(v.bulge) !== 0);
+          w.g(92, num(path.boundaryPathTypeFlag, 3) | 2);
+          w.g(72, hasBulge ? 1 : 0);
+          w.g(73, path.isClosed === true ? 1 : 0);
+          w.g(93, verts.length);
+          for (const v of verts) {
+            w.g(10, num(v.x));
+            w.g(20, num(v.y));
+            if (hasBulge) w.g(42, num(v.bulge));
+          }
+          w.g(97, 0);
+          continue;
+        }
+        const edges = Array.isArray(path.edges) ? (path.edges as Record<string, unknown>[]) : [];
         w.g(92, num(path.boundaryPathTypeFlag, 1) & ~2);
         w.g(93, edges.length);
         for (const ed of edges) {
-          if (num(ed.type) === 1) {
-            // line edge: 72=1, 10/20 start, 11/21 end
+          const t = num(ed.type);
+          if (t === 1) {
             const s = pt(ed.start);
             const en = pt(ed.end);
             w.g(72, 1);
@@ -296,8 +319,7 @@ function emitEntity(w: DxfWriter, e: DwgLikeEntity): boolean {
             w.g(20, s.y);
             w.g(11, en.x);
             w.g(21, en.y);
-          } else {
-            // arc edge: 72=2, 10/20 center, 40 radius, 50/51 deg, 73 ccw
+          } else if (t === 2) {
             const c = pt(ed.center);
             w.g(72, 2);
             w.g(10, c.x);
@@ -306,9 +328,22 @@ function emitEntity(w: DxfWriter, e: DwgLikeEntity): boolean {
             w.g(50, num(ed.startAngle) * RAD2DEG);
             w.g(51, num(ed.endAngle) * RAD2DEG);
             w.g(73, ed.isCCW ? 1 : 0);
+          } else {
+            // ellipse edge(3): 10/20 center, 11/21 major end(상대), 40 minor 비율, 50/51 deg, 73 ccw
+            const c = pt(ed.center);
+            const en = pt(ed.end);
+            w.g(72, 3);
+            w.g(10, c.x);
+            w.g(20, c.y);
+            w.g(11, en.x);
+            w.g(21, en.y);
+            w.g(40, num(ed.lengthOfMinorAxis, 1));
+            w.g(50, num(ed.startAngle) * RAD2DEG);
+            w.g(51, num(ed.endAngle) * RAD2DEG);
+            w.g(73, ed.isCCW ? 1 : 0);
           }
         }
-        w.g(97, 0); // source object count — parse-hatch skipToNextPath 가 소비
+        w.g(97, 0);
       }
       return true;
     }
