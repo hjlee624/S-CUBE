@@ -10,6 +10,13 @@
  * .wasm 은 public/libredwg/ 에서 정적 서빙되며, LibreDwg.create('/libredwg') 의 locateFile
  * 이 '/libredwg/libredwg-web.wasm' 로 해석한다.
  */
+import {
+  type CachedConversion,
+  CONVERTER_VERSION,
+  getCachedConversion,
+  hashDwgBytes,
+  setCachedConversion,
+} from '../lib/dwg-cache.ts';
 import { type DwgLikeDatabase, dwgDatabaseToDxf, parseAndNormalizeDxf } from '../lib/core-api.ts';
 import type { ParseDwgRequest, ParseResponse } from './messages.ts';
 
@@ -29,27 +36,39 @@ self.addEventListener('message', (ev: MessageEvent<ParseDwgRequest>) => {
       post({ type: 'progress', stage: 'convert', progress: -1 });
       const ab = await req.file.arrayBuffer();
 
-      // 동적 import — WASM 글루는 DWG 열 때만 로드.
-      const { LibreDwg, Dwg_File_Type } = await import('@mlightcad/libredwg-web');
-      const libredwg = await LibreDwg.create(WASM_DIR);
+      // RW-27: 변환 캐시 조회 — 같은 DWG 를 이미 변환했으면 WASM 로드·변환을 건너뛴다.
+      const cacheKey = hashDwgBytes(ab);
+      let conv: CachedConversion | null = await getCachedConversion(cacheKey);
 
-      const ptr = libredwg.dwg_read_data(ab, Dwg_File_Type.DWG);
-      if (ptr === undefined || ptr === null) {
-        throw new Error('DWG 데이터를 읽지 못했습니다 (손상되었거나 지원하지 않는 버전)');
-      }
-      const database = libredwg.convert(ptr);
-      // Dwg_Data 는 convert 후 불필요 — 메모리 해제.
-      try {
-        libredwg.dwg_free(ptr);
-      } catch {
-        // 해제 실패는 치명적이지 않음(다음 GC/워커 종료로 회수).
+      if (conv === null) {
+        // 캐시 미스 — WASM 리더로 변환. 글루는 DWG 열 때만 동적 로드.
+        const { LibreDwg, Dwg_File_Type } = await import('@mlightcad/libredwg-web');
+        const libredwg = await LibreDwg.create(WASM_DIR);
+
+        const ptr = libredwg.dwg_read_data(ab, Dwg_File_Type.DWG);
+        if (ptr === undefined || ptr === null) {
+          throw new Error('DWG 데이터를 읽지 못했습니다 (손상되었거나 지원하지 않는 버전)');
+        }
+        const database = libredwg.convert(ptr);
+        try {
+          libredwg.dwg_free(ptr);
+        } catch {
+          // 해제 실패는 치명적이지 않음(다음 GC/워커 종료로 회수).
+        }
+        // libredwg 의 DwgDatabase 는 core 의 덕타이핑 DwgLikeDatabase 의 상위집합 — unknown 경유 캐스트.
+        const res = dwgDatabaseToDxf(database as unknown as DwgLikeDatabase);
+        conv = {
+          dxf: res.dxf,
+          skipped: res.skipped,
+          unplaced: { count: res.unplacedEntities, names: res.unplacedBlockNames },
+          v: CONVERTER_VERSION,
+        };
+        // 캐시에 저장(실패해도 무시). 다음 열기부터 즉시.
+        void setCachedConversion(cacheKey, conv);
       }
 
       post({ type: 'progress', stage: 'parse', progress: -1 });
-      // libredwg 의 DwgDatabase 는 core 의 덕타이핑 DwgLikeDatabase 의 상위집합 — unknown 경유 캐스트.
-      const { dxf, skipped, unplacedEntities, unplacedBlockNames } = dwgDatabaseToDxf(
-        database as unknown as DwgLikeDatabase,
-      );
+      const { dxf, skipped, unplaced } = conv;
 
       post({ type: 'progress', stage: 'normalize', progress: 1 });
       const model = parseAndNormalizeDxf(dxf);
@@ -59,7 +78,7 @@ self.addEventListener('message', (ev: MessageEvent<ParseDwgRequest>) => {
         model,
         elapsed_ms: performance.now() - started,
         skipped,
-        unplaced: { count: unplacedEntities, names: unplacedBlockNames },
+        unplaced,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
