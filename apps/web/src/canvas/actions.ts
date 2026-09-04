@@ -111,6 +111,16 @@ function accumulateAreaIntoTargetCell(
   }
 }
 
+/** 측정 확정 공통 — 추가 + (Shift)누적 선택 + 대상 셀 자동기입/누적 */
+function commitMeasurement(measurement: Measurement, additive: boolean, areaClean: boolean): void {
+  const prior = useAppStore.getState().selectedMeasurementIds;
+  useAppStore.getState().addMeasurement(measurement);
+  if (additive) {
+    useAppStore.setState({ selectedMeasurementIds: [...prior, measurement.id] });
+  }
+  accumulateAreaIntoTargetCell(measurement, additive, areaClean);
+}
+
 /** 엔티티(line·polyline)의 정점 중 하나라도 [center±half] 상자 안에 있는가 */
 function hasVertexInBox(e: NEntity, center: Vec2, half: number): boolean {
   const inBox = (p: Vec2): boolean =>
@@ -197,100 +207,120 @@ export function pickMeasureAt(worldPos: Vec2, additive = false): void {
     if (picked !== null) candidates.push(picked);
   }
 
-  const best = pickBest(candidates, (h) => {
-    // 포함 히트 간 우열: 면적 히트는 rawMeasureOf 면적(작을수록 안쪽), 연장 히트는 무한대(후순위)
-    const raw = rawMeasureOf(h);
-    return raw.kind === 'area' ? Math.abs(raw.rawValue) : Number.POSITIVE_INFINITY;
-  });
+  // ── 도곽(전체 박스) 배제 임계 — 전체 bounds 면적의 절반을 넘는 폐합은 도곽으로 보고 제외.
+  // 핵심: 도곽은 거대 폐합 폴리라인이라 클릭 어디서든 "포함 면적 히트"로 잡혀 왔다. 그래서
+  // 경계탐색(해치식)이 실행되기도 전에 도곽이 best 로 선택돼 "전체 박스"만 잡혔다 → 이를 막는다.
+  const bnds = model.bounds;
+  const frameAreaThreshold =
+    bnds !== null
+      ? Math.max(0, (bnds.maxX - bnds.minX) * (bnds.maxY - bnds.minY)) * 0.5
+      : Number.POSITIVE_INFINITY;
 
-  // 빈 공간(선·폐합객체 위가 아님) 클릭 → 점 지정 경계 탐색(해치처럼): 클릭을 감싸는 최소
-  // 폐합 영역의 면적을 취득한다. 절토/성토처럼 여러 선으로 둘러싸인 영역을 점 하나로 잡는다.
-  if (best === null) {
-    const face = pickBoundaryFace(worldPos);
-    if (face !== null) {
-      const m = buildMeasurement(
-        {
-          id: crypto.randomUUID(),
-          drawingId: s.activeId,
-          kind: 'area',
-          rawValue: face.areaRaw,
-          method: 'auto-boundary',
-          sourceHandles: face.handles,
-          holes: [],
-          label: `면적 ${face.handles[0] ?? '경계'}`,
-          createdAt: new Date().toISOString(),
-        },
-        cal.scale,
-      );
-      const prior = s.selectedMeasurementIds;
-      s.addMeasurement(m);
-      if (additive) useAppStore.setState({ selectedMeasurementIds: [...prior, m.id] });
-      accumulateAreaIntoTargetCell(m, additive, true);
-      if (s.activeStationId === null || s.activeItemKey === null) {
-        s.showToast(`면적 ${m.value.toFixed(2)}㎡ 취득 (경계 자동탐색)`, 'success');
-      }
-      return;
+  // (1) 점 지정 경계 탐색 — 클릭점을 감싸는 **최소 폐합 영역**(선들로 둘러싸인 특정 구간).
+  //     AREA/HATCH 픽포인트와 동일 개념. pickBoundaryFace 가 도곽을 이미 배제한다.
+  const boundaryFace = pickBoundaryFace(worldPos);
+
+  // (2) 엔티티 포함 면적 히트 중 도곽 크기 초과는 제외하고 **최소 면적**을 고른다.
+  let entityAreaHit: PickHit | null = null;
+  let entityAreaRaw = Number.POSITIVE_INFINITY;
+  for (const h of candidates) {
+    if (!h.containment || h.kind !== 'area') continue;
+    const rawVal = rawMeasureOf(h).rawValue;
+    if (rawVal > frameAreaThreshold) continue; // 도곽(전체 박스) 제외
+    if (rawVal < entityAreaRaw) {
+      entityAreaHit = h;
+      entityAreaRaw = rawVal;
     }
-    // 경계도 객체도 없음 — 절토/성토 단면은 2클릭 단면적 취득 도구로 안내.
-    s.showToast(
-      "닫힌 경계를 찾지 못했습니다 — 절토/성토 단면은 '단면적 취득' 도구로 원지반선·계획선을 차례로 클릭하세요",
-      'warn',
+  }
+
+  // (3) 면적 취득: 경계탐색 vs 엔티티 포함 중 더 tight(작은 면적)한 쪽 채택.
+  //     도곽은 (1)(2) 모두에서 배제되므로 "전체 박스"가 선택되지 않는다.
+  if (boundaryFace !== null && (entityAreaHit === null || boundaryFace.areaRaw <= entityAreaRaw)) {
+    const m = buildMeasurement(
+      {
+        id: crypto.randomUUID(),
+        drawingId: s.activeId,
+        kind: 'area',
+        rawValue: boundaryFace.areaRaw,
+        method: 'auto-boundary',
+        sourceHandles: boundaryFace.handles,
+        holes: [],
+        label: `면적 ${boundaryFace.handles[0] ?? '경계'}`,
+        createdAt: new Date().toISOString(),
+      },
+      cal.scale,
     );
+    commitMeasurement(m, additive, true);
+    if (s.activeStationId === null || s.activeItemKey === null) {
+      s.showToast(`면적 ${m.value.toFixed(2)}㎡ 취득 (경계 자동탐색)`, 'success');
+    }
     return;
   }
 
-  const raw = rawMeasureOf(best);
-
-  // 신뢰성 경고 (2-C) — 측정은 진행하되 사용자에게 알린다.
-  if (raw.kind === 'area' && raw.openGap !== null) {
-    s.showToast(
-      `폐합되지 않은 폴리라인 — 시점·종점을 직선 폐합해 면적 산출 (오차 ${raw.openGap.toPrecision(4)} 도면단위)`,
-      'warn',
+  if (entityAreaHit !== null) {
+    const raw = rawMeasureOf(entityAreaHit);
+    if (raw.openGap !== null) {
+      s.showToast(
+        `폐합되지 않은 폴리라인 — 시점·종점을 직선 폐합해 면적 산출 (오차 ${raw.openGap.toPrecision(4)} 도면단위)`,
+        'warn',
+      );
+    } else if (raw.zeroArea) {
+      s.showToast('면적이 0입니다 — 퇴화하거나 폐합되지 않은 도형일 수 있습니다', 'warn');
+    } else if (raw.selfIntersecting) {
+      s.showToast('자기교차 폴리라인 — 면적 값이 부정확할 수 있습니다', 'warn');
+    }
+    const holes = entityAreaHit.entity.kind === 'hatch' ? holeHandlesOf(entityAreaHit.entity) : [];
+    const m = buildMeasurement(
+      {
+        id: crypto.randomUUID(),
+        drawingId: s.activeId,
+        kind: 'area',
+        rawValue: raw.rawValue,
+        method: entityAreaHit.method,
+        sourceHandles: [entityAreaHit.handle],
+        holes,
+        label: `면적 ${entityAreaHit.handle}`,
+        createdAt: new Date().toISOString(),
+      },
+      cal.scale,
     );
-  } else if (raw.zeroArea) {
-    s.showToast('면적이 0입니다 — 퇴화하거나 폐합되지 않은 도형일 수 있습니다', 'warn');
-  } else if (raw.selfIntersecting) {
-    s.showToast('자기교차 폴리라인 — 면적 값이 부정확할 수 있습니다', 'warn');
-  } else if (best.method === 'dimension' && best.entity.kind === 'dimension') {
-    if (best.entity.textOverride !== null) {
+    commitMeasurement(m, additive, raw.openGap === null && !raw.zeroArea && !raw.selfIntersecting);
+    return;
+  }
+
+  // (4) 면적 후보 없음 → 연장(선·치수 클릭) 히트를 측정.
+  const lengthHit = pickBest(candidates.filter((h) => h.kind === 'length'));
+  if (lengthHit !== null) {
+    if (
+      lengthHit.method === 'dimension' &&
+      lengthHit.entity.kind === 'dimension' &&
+      lengthHit.entity.textOverride !== null
+    ) {
       s.showToast('치수 텍스트가 override됨 — 실측값(measuredRaw)으로 측정합니다', 'warn');
     }
+    const raw = rawMeasureOf(lengthHit);
+    const m = buildMeasurement(
+      {
+        id: crypto.randomUUID(),
+        drawingId: s.activeId,
+        kind: 'length',
+        rawValue: raw.rawValue,
+        method: lengthHit.method,
+        sourceHandles: [lengthHit.handle],
+        holes: [],
+        label: `연장 ${lengthHit.handle}`,
+        createdAt: new Date().toISOString(),
+      },
+      cal.scale,
+    );
+    commitMeasurement(m, additive, false);
+    return;
   }
 
-  const holes = best.entity.kind === 'hatch' ? holeHandlesOf(best.entity) : [];
-
-  const measurement = buildMeasurement(
-    {
-      id: crypto.randomUUID(),
-      drawingId: s.activeId,
-      kind: raw.kind,
-      rawValue: raw.rawValue,
-      method: best.method,
-      sourceHandles: [best.handle],
-      holes,
-      // 기본 명명: 종류 + 짧은 handle (사용자가 패널에서 인라인 편집)
-      label: `${raw.kind === 'area' ? '면적' : '연장'} ${best.handle}`,
-      createdAt: new Date().toISOString(),
-    },
-    cal.scale,
-  );
-
-  // additive(Shift): 이번 측정을 기존 선택에 누적. 일반 클릭: 새 측정을 단일 선택으로 교체.
-  // addMeasurement가 내부적으로 단일선택으로 덮으므로, additive면 병합된 선택으로 한 번 더 확정한다
-  // (기존 선택을 덮기 전에 캡처).
-  const priorSelection = s.selectedMeasurementIds;
-  s.addMeasurement(measurement);
-  if (additive) {
-    useAppStore.setState({ selectedMeasurementIds: [...priorSelection, measurement.id] });
-  }
-
-  // RW-22: 면적 대상 셀이 지정돼 있으면 이 면적을 측점 셀에 자동 기입/누적한다.
-  // 반자동 핵심 — 사람은 도면 영역만 클릭, 면적 산정·축척²·셀 기입은 도구가 수행.
-  // 일반 클릭 = 이 영역으로 교체, Shift+클릭 = 기존 값에 누적(여러 폐합영역 합산).
-  accumulateAreaIntoTargetCell(
-    measurement,
-    additive,
-    raw.openGap === null && !raw.zeroArea && !raw.selfIntersecting,
+  // (5) 아무 것도 못 잡음 → 안내(절토/성토는 단면적 취득 2클릭).
+  s.showToast(
+    "닫힌 경계를 찾지 못했습니다 — 절토/성토 단면은 '단면적 취득' 도구로 원지반선·계획선을 차례로 클릭하세요",
+    'warn',
   );
 }
 
