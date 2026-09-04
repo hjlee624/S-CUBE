@@ -14,6 +14,7 @@ export const createCalibrationSlice: StateCreator<AppState, [], [], CalibrationS
   calibPoints: [],
   pendingCalibration: null,
   dimCheck: null,
+  lastCalibration: null,
 
   addCalibPoint: (p) => {
     const { calibPoints } = get();
@@ -44,6 +45,7 @@ export const createCalibrationSlice: StateCreator<AppState, [], [], CalibrationS
         : recomputeValuesForDrawing(measurements, activeId, cal.scale);
     set({
       calibration: cal,
+      lastCalibration: cal,
       measurements: nextMeasurements,
       pendingCalibration: null,
       calibPoints: [],
@@ -51,6 +53,30 @@ export const createCalibrationSlice: StateCreator<AppState, [], [], CalibrationS
     });
     // P4-10: 재캘리브레이션으로 측정 value 가 바뀌면 하위 산출 항목도 재계산.
     get().recomputeTakeoff();
+  },
+
+  reuseCalibration: (cal) => {
+    const { storageKey, activeId, measurements } = get();
+    // 활성 도면 storageKey 에 그대로 저장 — 다음 재열기 때 자동 복원되도록.
+    if (storageKey !== null) saveCalibration(storageKey, cal);
+    // 재사용 축척으로 활성 도면 측정값을 되계산(보통 신규 도면이라 측정이 없지만 안전).
+    const nextMeasurements =
+      activeId === null
+        ? measurements
+        : recomputeValuesForDrawing(measurements, activeId, cal.scale);
+    set({
+      calibration: cal,
+      lastCalibration: cal,
+      measurements: nextMeasurements,
+      // 재사용은 2점 측정 흐름이 아니므로 진행상태만 정리하고 도구는 사용자 현재 선택을 유지.
+      pendingCalibration: null,
+      calibPoints: [],
+    });
+    get().recomputeTakeoff();
+    get().showToast(
+      `축척 재사용 — 1 도면단위 = ${cal.scale.toPrecision(4)} m 적용됨`,
+      'success',
+    );
   },
 
   clearCalibration: () => {

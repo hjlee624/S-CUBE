@@ -92,10 +92,21 @@ export interface CalibrationSlice {
   pendingCalibration: PendingCalibration | null;
   /** 치수 대조 결과 (P1-12) */
   dimCheck: DimensionCheck | null;
+  /**
+   * 직전에 확정한 캘리브레이션 (도면 무관 전역 보존). 새 도면이 축척이 없을 때
+   * "직전 축척 재사용"으로 2점 재측정 없이 바로 적용하기 위한 원천 (RW-23).
+   * 도면 전환·로드 시에도 유지된다(flat 필드 미갱신 → zustand merge 보존).
+   */
+  lastCalibration: Calibration | null;
   addCalibPoint: (p: Vec2) => void;
   cancelCalibration: () => void;
   /** 모달 확정 — 검증·저장까지 수행 */
   applyCalibration: (cal: Calibration) => void;
+  /**
+   * 기존 캘리브레이션(다른 도면·직전 축척)을 활성 도면에 그대로 적용 (RW-23).
+   * 2점 재측정 없이 scale 을 재사용한다 — 축척이 같은 도면 세트에서 반복 작업 편의.
+   */
+  reuseCalibration: (cal: Calibration) => void;
   clearCalibration: () => void;
   setDimCheck: (check: DimensionCheck | null) => void;
 }
