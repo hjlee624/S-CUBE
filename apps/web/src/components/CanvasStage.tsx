@@ -217,7 +217,7 @@ export function CanvasStage() {
     <div
       role="application"
       aria-label="도면 캔버스"
-      className="relative min-w-0 flex-1 overflow-hidden bg-zinc-950"
+      className="canvas-dark relative min-w-0 flex-1 overflow-hidden bg-zinc-950"
       onDragOver={(e) => {
         e.preventDefault();
         setIsDropTarget(true);

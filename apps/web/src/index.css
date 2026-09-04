@@ -9,6 +9,26 @@
   --font-sans: "Pretendard Variable", Pretendard, "Segoe UI", "Malgun Gothic", sans-serif;
   --font-mono: "JetBrains Mono", Consolas, "Courier New", monospace;
 
+  /*
+   * ── 라이트 테마: zinc 스케일 반전 ──
+   * UI 전반이 dark(bg-zinc-950 / text-zinc-200 …)로 작성돼 있어, zinc 팔레트를 명암 반전하면
+   * 컴포넌트 수정 없이 앱 전체가 밝아지고 대비 관계는 그대로 보존된다(배경↔글자 뒤집힘).
+   * 도면 뷰어(canvas)는 renderer.ts 가 BG_COLOR('#0b0b0d')로 직접 칠하므로 이 반전과 무관하게
+   * 어둡게 유지된다. (요구: 뷰어만 어둡게, 나머지는 다 밝게)
+   *   50↔950, 100↔900, 200↔800, 300↔700, 400↔600, 500 유지
+   */
+  --color-zinc-50: #09090b;
+  --color-zinc-100: #18181b;
+  --color-zinc-200: #27272a;
+  --color-zinc-300: #3f3f46;
+  --color-zinc-400: #52525b;
+  --color-zinc-500: #71717a;
+  --color-zinc-600: #a1a1aa;
+  --color-zinc-700: #d4d4d8;
+  --color-zinc-800: #e4e4e7;
+  --color-zinc-900: #f4f4f5;
+  --color-zinc-950: #fafafa;
+
   /* ── 이징 토큰 (레퍼런스: Krepling expo-out, RedSun back-out, Cartesia in-expo) ── */
   --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
@@ -271,6 +291,26 @@ html,
 body,
 #root {
   height: 100%;
+}
+
+/*
+ * ── 도면 뷰어(canvas) 국소 다크 테마 ──
+ * 전역은 라이트(zinc 반전)이지만, 캔버스 영역과 그 오버레이(EmptyHero·드롭힌트·로딩)는 어두운
+ * 도면 위에 있으므로 zinc 를 원래 다크값으로 되돌린다. Tailwind v4 유틸리티는 var(--color-zinc-*)
+ * 를 참조하므로, 이 컨테이너 하위 트리에서만 다크 팔레트가 적용된다.
+ */
+.canvas-dark {
+  --color-zinc-50: #fafafa;
+  --color-zinc-100: #f4f4f5;
+  --color-zinc-200: #e4e4e7;
+  --color-zinc-300: #d4d4d8;
+  --color-zinc-400: #a1a1aa;
+  --color-zinc-500: #71717a;
+  --color-zinc-600: #52525b;
+  --color-zinc-700: #3f3f46;
+  --color-zinc-800: #27272a;
+  --color-zinc-900: #18181b;
+  --color-zinc-950: #09090b;
 }
 
 /* 캔버스 위 커서·스크롤 관성 억제 */
