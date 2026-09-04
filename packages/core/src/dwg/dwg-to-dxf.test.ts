@@ -141,6 +141,89 @@ describe('dwgDatabaseToDxf — 기본 엔티티 라운드트립 (RW-24)', () => 
   });
 });
 
+describe('dwgDatabaseToDxf — 페이퍼 스페이스 제외 (RW-24 버그수정)', () => {
+  it('페이퍼 스페이스(도곽) 엔티티는 모델에서 제외 — 원점 bounds 오염 방지', () => {
+    const database: DwgLikeDatabase = {
+      entities: [
+        {
+          type: 'LINE',
+          handle: 'M1',
+          layer: '0',
+          ownerBlockRecordSoftId: 'MS',
+          startPoint: { x: 217000, y: 331000 },
+          endPoint: { x: 217010, y: 331000 },
+        },
+        {
+          // 페이퍼 스페이스 도곽 — 원점 근처. 제외돼야 한다.
+          type: 'LINE',
+          handle: 'P1',
+          layer: '0',
+          ownerBlockRecordSoftId: 'PS',
+          startPoint: { x: 0, y: 0 },
+          endPoint: { x: 500, y: 350 },
+        },
+      ],
+      header: { INSUNITS: 6 },
+      tables: {
+        LAYER: { entries: [{ name: '0', colorIndex: 7 }] },
+        BLOCK_RECORD: {
+          entries: [
+            { name: '*Model_Space', handle: 'MS', entities: [] },
+            { name: '*Paper_Space', handle: 'PS', entities: [] },
+          ],
+        },
+      },
+    };
+    const { dxf } = dwgDatabaseToDxf(database);
+    const model = parseAndNormalizeDxf(dxf);
+    const lines = model.entities.filter((e) => e.kind === 'line');
+    expect(lines).toHaveLength(1);
+    expect(lines[0]?.handle).toBe('M1');
+    // bounds 가 실좌표(217000+)여야 하고 원점(0)에 오염되지 않아야 한다.
+    expect(model.bounds?.minX ?? 0).toBeGreaterThan(200000);
+  });
+});
+
+describe('dwgDatabaseToDxf — HATCH 경계 방출 (RW-24)', () => {
+  it('line edge 경계 HATCH → 파이프라인이 hatch loop 로 파싱', () => {
+    const { dxf } = dwgDatabaseToDxf(
+      db([
+        {
+          type: 'HATCH',
+          handle: 'H1',
+          layer: 'CS-PATT',
+          patternName: 'SOLID',
+          solidFill: 1,
+          boundaryPaths: [
+            {
+              boundaryPathTypeFlag: 1,
+              numberOfEdges: 3,
+              edges: [
+                { type: 1, start: { x: 0, y: 0 }, end: { x: 10, y: 0 } },
+                { type: 1, start: { x: 10, y: 0 }, end: { x: 5, y: 8 } },
+                { type: 1, start: { x: 5, y: 8 }, end: { x: 0, y: 0 } },
+              ],
+            },
+          ],
+        },
+      ]),
+    );
+    const model = parseAndNormalizeDxf(dxf);
+    const hatch = model.entities.find((e) => e.kind === 'hatch');
+    expect(hatch).toBeDefined();
+    if (hatch?.kind === 'hatch') {
+      expect(hatch.loops.length).toBeGreaterThan(0);
+      expect(hatch.loops[0]?.vertices.length).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('boundaryPaths 없는 HATCH 는 건너뛴다(skipped 집계)', () => {
+    const { emitted, skipped } = dwgDatabaseToDxf(db([{ type: 'HATCH', handle: 'H', layer: '0' }]));
+    expect(emitted).toBe(0);
+    expect(skipped.HATCH).toBe(1);
+  });
+});
+
 describe('dwgDatabaseToDxf — INSERT 블록 전개 (RW-24)', () => {
   it('모델 INSERT + 블록 정의 → 파이프라인이 전개(오프셋 반영)', () => {
     const database = db(
@@ -186,6 +269,29 @@ describe('dwgDatabaseToDxf — 미지원 형식 집계 (RW-24)', () => {
     expect(emitted).toBe(1);
     expect(skipped.HATCH).toBe(2);
     expect(skipped.MULTILEADER).toBe(1);
+  });
+
+  it('POLYLINE2D → LWPOLYLINE(polyline) 로 방출', () => {
+    const { dxf } = dwgDatabaseToDxf(
+      db([
+        {
+          type: 'POLYLINE2D',
+          handle: 'P2',
+          layer: '0',
+          flag: 1, // 폐합
+          vertices: [
+            { x: 0, y: 0, bulge: 0 },
+            { x: 10, y: 0, bulge: 0 },
+            { x: 10, y: 10, bulge: 0 },
+          ],
+        },
+      ]),
+    );
+    const model = parseAndNormalizeDxf(dxf);
+    const poly = model.entities.find((e) => e.kind === 'polyline');
+    expect(poly).toBeDefined();
+    expect(poly?.kind === 'polyline' && poly.closed).toBe(true);
+    expect(poly?.kind === 'polyline' && poly.vertices.length).toBe(3);
   });
 
   it('레이어 테이블이 모델 layers 로 반영된다', () => {

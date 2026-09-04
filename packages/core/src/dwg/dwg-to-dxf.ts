@@ -15,8 +15,10 @@
  * - 블록: DwgDatabase.tables.BLOCK_RECORD.entries[].entities 를 BLOCKS 섹션으로,
  *   모델공간 엔티티(db.entities)를 ENTITIES 섹션으로 emit → INSERT 는 파이프라인이 전개.
  *
- * v1 지원 엔티티: LINE, LWPOLYLINE, CIRCLE, ARC, ELLIPSE, TEXT, MTEXT, SOLID, INSERT.
- * 미지원(HATCH·MULTILEADER·VIEWPORT·WIPEOUT·ATTRIB 등)은 건너뛰고 개수를 집계해 알린다.
+ * 지원 엔티티: LINE, LWPOLYLINE(폐합 flag&512), POLYLINE2D(→LWPOLYLINE), CIRCLE, ARC,
+ * ELLIPSE, TEXT, MTEXT, SOLID, INSERT, HATCH(line/arc edge 경계 — 지층·토공 채움).
+ * 미지원(DIMENSION·MULTILEADER·VIEWPORT·WIPEOUT·SPLINE·ATTRIB 등)은 건너뛰고 개수를 집계해 알린다.
+ * 페이퍼 스페이스(도곽·표제부) 엔티티는 제외한다 — 원점 오염으로 bounds/화면맞춤이 깨지는 것 방지.
  */
 
 const RAD2DEG = 180 / Math.PI;
@@ -33,6 +35,8 @@ export interface DwgLikeEntity {
   handle?: string;
   layer?: string;
   colorIndex?: number;
+  /** 이 엔티티를 소유한 블록레코드 handle — 모델/페이퍼 스페이스 구분 키 */
+  ownerBlockRecordSoftId?: string;
   [key: string]: unknown;
 }
 export interface DwgLikeLayer {
@@ -44,6 +48,7 @@ export interface DwgLikeLayer {
 }
 export interface DwgLikeBlockRecord {
   name: string;
+  handle?: string;
   basePoint?: P;
   entities?: DwgLikeEntity[];
 }
@@ -219,6 +224,70 @@ function emitEntity(w: DxfWriter, e: DwgLikeEntity): boolean {
       w.g(23, c4.y);
       return true;
     }
+    case 'POLYLINE2D': {
+      // 구식 2D 폴리라인 → LWPOLYLINE 으로 방출(정점 x/y/bulge 동형). 폐합=flag bit0.
+      const verts = Array.isArray(e.vertices) ? (e.vertices as Record<string, unknown>[]) : [];
+      if (verts.length === 0) return false;
+      emitCommon(w, e, 'LWPOLYLINE');
+      w.g(90, verts.length);
+      w.g(70, (num(e.flag) & 1) !== 0 ? 1 : 0);
+      for (const v of verts) {
+        w.g(10, num(v.x));
+        w.g(20, num(v.y));
+        const bulge = num(v.bulge);
+        if (bulge !== 0) w.g(42, bulge);
+      }
+      return true;
+    }
+    case 'HATCH': {
+      // 경계 경로(edge-type)를 parse-hatch.ts 가 읽는 그룹코드로 방출.
+      // line(1)·arc(2) edge 만 신뢰 방출 — 미지원 edge(ellipse/spline)가 섞이면 이 HATCH skip
+      // (부분 방출로 파서 스트림이 오정렬되는 것 방지).
+      const paths = Array.isArray(e.boundaryPaths)
+        ? (e.boundaryPaths as Record<string, unknown>[])
+        : [];
+      if (paths.length === 0) return false;
+      const pathEdges = paths.map((p) =>
+        Array.isArray(p.edges) ? (p.edges as Record<string, unknown>[]) : [],
+      );
+      const allSupported = pathEdges.every(
+        (edges) => edges.length > 0 && edges.every((ed) => num(ed.type) === 1 || num(ed.type) === 2),
+      );
+      if (!allSupported) return false;
+      emitCommon(w, e, 'HATCH');
+      w.g(91, paths.length);
+      for (let pi = 0; pi < paths.length; pi++) {
+        const path = paths[pi] as Record<string, unknown>;
+        const edges = pathEdges[pi] as Record<string, unknown>[];
+        // 92: path type flag — 폴리라인 비트(2) 제거해 edge-type 로 강제.
+        w.g(92, num(path.boundaryPathTypeFlag, 1) & ~2);
+        w.g(93, edges.length);
+        for (const ed of edges) {
+          if (num(ed.type) === 1) {
+            // line edge: 72=1, 10/20 start, 11/21 end
+            const s = pt(ed.start);
+            const en = pt(ed.end);
+            w.g(72, 1);
+            w.g(10, s.x);
+            w.g(20, s.y);
+            w.g(11, en.x);
+            w.g(21, en.y);
+          } else {
+            // arc edge: 72=2, 10/20 center, 40 radius, 50/51 deg, 73 ccw
+            const c = pt(ed.center);
+            w.g(72, 2);
+            w.g(10, c.x);
+            w.g(20, c.y);
+            w.g(40, num(ed.radius));
+            w.g(50, num(ed.startAngle) * RAD2DEG);
+            w.g(51, num(ed.endAngle) * RAD2DEG);
+            w.g(73, ed.isCCW ? 1 : 0);
+          }
+        }
+        w.g(97, 0); // source object count — parse-hatch skipToNextPath 가 소비
+      }
+      return true;
+    }
     case 'INSERT': {
       emitCommon(w, e, 'INSERT');
       const name = typeof e.name === 'string' ? e.name : '';
@@ -286,8 +355,11 @@ export function dwgDatabaseToDxf(db: DwgLikeDatabase): DwgToDxfResult {
   w.g(0, 'ENDTAB');
   w.g(0, 'ENDSEC');
 
-  // BLOCKS — *Model_Space/*Paper_Space 제외한 실제 블록 정의
+  // 모델 스페이스 블록레코드 handle — 페이퍼 스페이스(도곽·표제부) 제외 기준.
   const blockRecords = db.tables?.BLOCK_RECORD?.entries ?? [];
+  const modelSpaceHandle = blockRecords.find((b) => b.name === '*Model_Space')?.handle;
+
+  // BLOCKS — *Model_Space/*Paper_Space 제외한 실제 블록 정의
   w.g(0, 'SECTION');
   w.g(2, 'BLOCKS');
   for (const br of blockRecords) {
@@ -309,10 +381,15 @@ export function dwgDatabaseToDxf(db: DwgLikeDatabase): DwgToDxfResult {
   }
   w.g(0, 'ENDSEC');
 
-  // ENTITIES — 모델공간
+  // ENTITIES — 모델 스페이스만. db.entities 는 모델+페이퍼(도곽·표제부·VIEWPORT)를 모두
+  // 담으므로, 페이퍼 스페이스를 제외한다(DXF 직접 경로와 동일 정책 — 도곽이 원점에서 bounds 를
+  // 오염시켜 화면맞춤이 실제 도면을 좁쌀만 하게 만드는 문제 교정). handle 을 못 찾으면 전부 emit.
   w.g(0, 'SECTION');
   w.g(2, 'ENTITIES');
-  for (const e of db.entities ?? []) emit(e);
+  for (const e of db.entities ?? []) {
+    if (modelSpaceHandle !== undefined && e.ownerBlockRecordSoftId !== modelSpaceHandle) continue;
+    emit(e);
+  }
   w.g(0, 'ENDSEC');
 
   w.g(0, 'EOF');
