@@ -373,6 +373,38 @@ describe('dwgDatabaseToDxf — 미지원 형식 집계 (RW-24)', () => {
     expect(poly?.kind === 'polyline' && poly.vertices.length).toBe(3);
   });
 
+  it('참조되지 않은 상당 규모 블록은 미배치로 집계(경고용)', () => {
+    // 30개 이상 엔티티를 가진 블록인데 어떤 INSERT 도 참조 안 함 → unplaced.
+    const orphanEnts: DwgLikeEntity[] = Array.from({ length: 40 }, (_, i) => ({
+      type: 'LINE',
+      handle: `O${i}`,
+      layer: '0',
+      startPoint: { x: i, y: 0 },
+      endPoint: { x: i, y: 5 },
+    }));
+    const database = db([{ type: 'LINE', handle: 'M', layer: '0', startPoint: { x: 0, y: 0 }, endPoint: { x: 1, y: 0 } }], {
+      blocks: [{ name: '굴착설계', entities: orphanEnts }],
+    });
+    const r = dwgDatabaseToDxf(database);
+    expect(r.unplacedEntities).toBe(40);
+    expect(r.unplacedBlockNames).toContain('굴착설계');
+  });
+
+  it('INSERT 로 참조된 블록은 미배치 아님', () => {
+    const ents: DwgLikeEntity[] = Array.from({ length: 40 }, (_, i) => ({
+      type: 'LINE',
+      handle: `B${i}`,
+      layer: '0',
+      startPoint: { x: i, y: 0 },
+      endPoint: { x: i, y: 5 },
+    }));
+    const database = db([{ type: 'INSERT', handle: 'I', layer: '0', name: '심볼', insertionPoint: { x: 0, y: 0 } }], {
+      blocks: [{ name: '심볼', entities: ents }],
+    });
+    const r = dwgDatabaseToDxf(database);
+    expect(r.unplacedEntities).toBe(0);
+  });
+
   it('레이어 테이블이 모델 layers 로 반영된다', () => {
     const { dxf } = dwgDatabaseToDxf(
       db(

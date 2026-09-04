@@ -47,12 +47,20 @@ self.addEventListener('message', (ev: MessageEvent<ParseDwgRequest>) => {
 
       post({ type: 'progress', stage: 'parse', progress: -1 });
       // libredwg 의 DwgDatabase 는 core 의 덕타이핑 DwgLikeDatabase 의 상위집합 — unknown 경유 캐스트.
-      const { dxf, skipped } = dwgDatabaseToDxf(database as unknown as DwgLikeDatabase);
+      const { dxf, skipped, unplacedEntities, unplacedBlockNames } = dwgDatabaseToDxf(
+        database as unknown as DwgLikeDatabase,
+      );
 
       post({ type: 'progress', stage: 'normalize', progress: 1 });
       const model = parseAndNormalizeDxf(dxf);
 
-      post({ type: 'done', model, elapsed_ms: performance.now() - started, skipped });
+      post({
+        type: 'done',
+        model,
+        elapsed_ms: performance.now() - started,
+        skipped,
+        unplaced: { count: unplacedEntities, names: unplacedBlockNames },
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       post({ type: 'error', message });

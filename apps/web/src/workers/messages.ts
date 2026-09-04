@@ -44,5 +44,10 @@ export type ParseResponse =
       elapsed_ms: number;
       /** DWG 변환 시 미지원으로 건너뛴 형식별 개수 (RW-24). DXF 경로는 미설정. */
       skipped?: Record<string, number>;
+      /**
+       * 미배치 블록(어떤 INSERT 로도 배치 안 된 정의) — 이 DWG 자체에 배치정보가 없어 못 그린
+       * 객체 수·블록명. 크면 DXF 대비 내용이 빠져 보인다 → 경고용. (RW-24)
+       */
+      unplaced?: { count: number; names: string[] };
     }
   | { type: 'error'; message: string };

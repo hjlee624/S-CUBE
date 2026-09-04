@@ -69,6 +69,14 @@ export interface DwgToDxfResult {
   emitted: number;
   /** 미지원으로 건너뛴 형식별 개수 */
   skipped: Record<string, number>;
+  /**
+   * 미배치 블록 엔티티 수 — 어떤 INSERT 로도 참조되지 않아 도면에 배치되지 못한 블록 정의의
+   * 엔티티 합(상당 규모 블록만). 이 DWG 자체에 배치정보(INSERT)가 없어 위치를 알 수 없으므로
+   * 모델에 그리지 않는다. 값이 크면 DXF 대비 내용이 빠져 보인다 → 호출측이 경고한다.
+   */
+  unplacedEntities: number;
+  /** 미배치 블록명 상위 몇 개(경고 메시지용) */
+  unplacedBlockNames: string[];
 }
 
 /** 지수표기 회피 숫자 포맷 — 좌표/각도용 */
@@ -455,5 +463,28 @@ export function dwgDatabaseToDxf(db: DwgLikeDatabase): DwgToDxfResult {
 
   w.g(0, 'EOF');
 
-  return { dxf: w.toString(), emitted, skipped };
+  // 미배치 블록 감지 — 어떤 INSERT 로도 참조되지 않은 상당 규모 블록(로컬 좌표 정의만 존재).
+  // 이 DWG 자체에 배치 INSERT 가 없어 위치 불명 → 모델에 못 그린다. DXF 대비 내용 누락의 원인.
+  const referenced = new Set<string>();
+  const collectInsertNames = (arr: DwgLikeEntity[] | undefined): void => {
+    for (const e of arr ?? []) {
+      if (e.type === 'INSERT' && typeof e.name === 'string' && e.name !== '') referenced.add(e.name);
+    }
+  };
+  collectInsertNames(db.entities);
+  for (const br of blockRecords) collectInsertNames(br.entities);
+  let unplacedEntities = 0;
+  const unplacedBlockNames: string[] = [];
+  for (const br of blockRecords) {
+    const name = br.name ?? '';
+    if (name === '' || name.startsWith('*')) continue;
+    const count = Array.isArray(br.entities) ? br.entities.length : 0;
+    // 30개 이상인데 참조되지 않은 블록만 "미배치 설계블록"으로 집계(작은 심볼 정의는 정상적으로 미사용).
+    if (count >= 30 && !referenced.has(name)) {
+      unplacedEntities += count;
+      unplacedBlockNames.push(name);
+    }
+  }
+
+  return { dxf: w.toString(), emitted, skipped, unplacedEntities, unplacedBlockNames };
 }

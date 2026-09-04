@@ -120,12 +120,25 @@ function parseDwgViaWasm(file: File, seq: number): Promise<void> {
           const restoredNote = after.calibration !== null ? ' · 저장된 캘리브레이션 복원됨' : '';
           const skippedNote =
             skippedTotal > 0 ? ` · 미지원 ${skippedTotal.toLocaleString('ko-KR')}개 형식 제외` : '';
-          s.showToast(
-            `${file.name} — ${msg.model.entities.length.toLocaleString('ko-KR')}개 엔티티 로드 (${Math.round(
-              msg.elapsed_ms,
-            )}ms)${restoredNote}${skippedNote}`,
-            'success',
-          );
+          // 미배치 블록 경고 — 이 DWG 에 배치정보(INSERT)가 없는 설계블록이 있으면 DXF 대비
+          // 내용이 빠져 보인다. 상당 규모면 성공 대신 경고 토스트로 명확히 알린다.
+          const unplaced = msg.unplaced;
+          if (unplaced !== undefined && unplaced.count >= 200) {
+            const names = unplaced.names.slice(0, 4).join(', ');
+            s.showToast(
+              `${file.name} 로드 — 다만 배치정보 없는 블록 ${unplaced.count.toLocaleString('ko-KR')}개 객체(${names}${
+                unplaced.names.length > 4 ? ' 등' : ''
+              })는 이 DWG에 INSERT 위치가 없어 표시 못 함. 완전한 도면은 CAD에서 DXF로 저장 후 여세요.`,
+              'warn',
+            );
+          } else {
+            s.showToast(
+              `${file.name} — ${msg.model.entities.length.toLocaleString('ko-KR')}개 엔티티 로드 (${Math.round(
+                msg.elapsed_ms,
+              )}ms)${restoredNote}${skippedNote}`,
+              'success',
+            );
+          }
           finish();
           resolve();
           break;
