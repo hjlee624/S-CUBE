@@ -271,6 +271,39 @@ describe('dwgDatabaseToDxf — 미지원 형식 집계 (RW-24)', () => {
     expect(skipped.MULTILEADER).toBe(1);
   });
 
+  it('ATTRIB(블록 속성값) → TEXT 로 방출 (중첩 text 객체)', () => {
+    const { dxf, emitted } = dwgDatabaseToDxf(
+      db([
+        {
+          type: 'ATTRIB',
+          handle: 'A1',
+          layer: '0',
+          tag: 'STATION',
+          text: {
+            text: 'No.8+0.000',
+            startPoint: { x: 5, y: 3 },
+            textHeight: 2,
+            rotation: 0,
+          },
+        },
+      ]),
+    );
+    expect(emitted).toBe(1);
+    const model = parseAndNormalizeDxf(dxf);
+    const text = model.entities.find((e) => e.kind === 'text');
+    expect(text?.kind === 'text' && text.value).toBe('No.8+0.000');
+  });
+
+  it('ATTDEF 값 없으면 tag 로 폴백, 둘 다 없으면 skip', () => {
+    const withTag = dwgDatabaseToDxf(
+      db([{ type: 'ATTDEF', handle: 'D1', layer: '0', tag: '측점', text: { startPoint: { x: 0, y: 0 } } }]),
+    );
+    const mt = parseAndNormalizeDxf(withTag.dxf);
+    expect(mt.entities.find((e) => e.kind === 'text' && e.value === '측점')).toBeDefined();
+    const empty = dwgDatabaseToDxf(db([{ type: 'ATTDEF', handle: 'D2', layer: '0', text: {} }]));
+    expect(empty.emitted).toBe(0);
+  });
+
   it('POLYLINE2D → LWPOLYLINE(polyline) 로 방출', () => {
     const { dxf } = dwgDatabaseToDxf(
       db([

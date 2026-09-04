@@ -16,8 +16,9 @@
  *   모델공간 엔티티(db.entities)를 ENTITIES 섹션으로 emit → INSERT 는 파이프라인이 전개.
  *
  * 지원 엔티티: LINE, LWPOLYLINE(폐합 flag&512), POLYLINE2D(→LWPOLYLINE), CIRCLE, ARC,
- * ELLIPSE, TEXT, MTEXT, SOLID, INSERT, HATCH(line/arc edge 경계 — 지층·토공 채움).
- * 미지원(DIMENSION·MULTILEADER·VIEWPORT·WIPEOUT·SPLINE·ATTRIB 등)은 건너뛰고 개수를 집계해 알린다.
+ * ELLIPSE, TEXT, MTEXT, ATTRIB/ATTDEF(→TEXT, 블록 속성 텍스트: 표제부·측점·지층명), SOLID,
+ * INSERT, HATCH(line/arc edge 경계 — 지층·토공 채움). 익명·동적 블록(*U/*X/*D/*T)도 방출.
+ * 미지원(DIMENSION·MULTILEADER·VIEWPORT·WIPEOUT·SPLINE 등)은 건너뛰고 개수를 집계해 알린다.
  * 페이퍼 스페이스(도곽·표제부) 엔티티는 제외한다 — 원점 오염으로 bounds/화면맞춤이 깨지는 것 방지.
  */
 
@@ -199,6 +200,29 @@ function emitEntity(w: DxfWriter, e: DwgLikeEntity): boolean {
       if (rot !== 0) w.g(50, rot * RAD2DEG);
       return true;
     }
+    case 'ATTRIB':
+    case 'ATTDEF': {
+      // 블록 속성값(ATTRIB)·정의(ATTDEF) — 표제부·측점·도면번호 등 블록 안 텍스트.
+      // 좌표·값은 중첩 text 객체에 있다({text:{text, startPoint, textHeight, rotation}}).
+      // 이걸 스킵하면 블록을 전개해도 속성 텍스트가 안 보인다.
+      const t = (e.text ?? {}) as Record<string, unknown>;
+      const value =
+        typeof t.text === 'string' && t.text !== ''
+          ? t.text
+          : typeof e.tag === 'string'
+            ? e.tag
+            : '';
+      if (value === '') return false;
+      emitCommon(w, e, 'TEXT');
+      const p = pt(t.startPoint);
+      w.g(10, p.x);
+      w.g(20, p.y);
+      w.g(40, num(t.textHeight, 1));
+      w.g(1, value);
+      const rot = num(t.rotation);
+      if (rot !== 0) w.g(50, rot * RAD2DEG);
+      return true;
+    }
     case 'MTEXT': {
       emitCommon(w, e, 'MTEXT');
       const p = pt(e.insertionPoint);
@@ -364,7 +388,9 @@ export function dwgDatabaseToDxf(db: DwgLikeDatabase): DwgToDxfResult {
   w.g(2, 'BLOCKS');
   for (const br of blockRecords) {
     const name = br.name ?? '';
-    if (name === '' || name.startsWith('*')) continue;
+    // 레이아웃 스페이스(*Model_Space/*Paper_Space)만 제외 — 익명·동적 블록(*U/*X/*D/*T)은
+    // INSERT 가 참조할 수 있으므로 방출한다(안 하면 동적블록 내용이 안 보인다).
+    if (name === '' || name === '*Model_Space' || name.startsWith('*Paper_Space')) continue;
     const ents = Array.isArray(br.entities) ? br.entities : [];
     const base = pt(br.basePoint);
     w.g(0, 'BLOCK');
