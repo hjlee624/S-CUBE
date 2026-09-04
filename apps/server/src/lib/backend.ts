@@ -23,11 +23,18 @@ export const DWG_GUIDE_MESSAGE =
   `대안 2안 ODA File Converter(무료·이메일 등록 필요): ${ODA_DOWNLOAD_URL} 에서 내려받아 ` +
   '기본 경로(C:/Program Files/ODA)에 설치하면 자동 감지됩니다.';
 
-/** 탐지 — LibreDWG 1순위, 없으면 ODA 폴백. 둘 다 없으면 null. */
+/**
+ * 탐지 — ODA 1순위, 없으면 LibreDWG 폴백. 둘 다 없으면 null.
+ *
+ * ODA 우선 이유(RW-27): 서버 변환은 이제 브라우저 WASM(libredwg)이 불완전할 때만(배치정보
+ * 없는 블록 다수) 호출된다. 네이티브 LibreDWG dwg2dxf 는 WASM 과 같은 libredwg 라이브러리라
+ * 같은 배치 누락 버그를 가진다 → 재시도해도 소용없다. ODA File Converter 는 다른(견고한)
+ * 엔진이라 그 배치까지 읽어 완전한 DXF 를 만든다. 그래서 완전성이 필요한 이 경로에선 ODA 우선.
+ */
 export function findConverter(): ConverterInfo | null {
-  const libredwg = findLibredwgConverter();
-  if (libredwg !== null) return { backend: 'libredwg', path: libredwg };
   const oda = findOdaConverter();
   if (oda !== null) return { backend: 'oda', path: oda };
+  const libredwg = findLibredwgConverter();
+  if (libredwg !== null) return { backend: 'libredwg', path: libredwg };
   return null;
 }
