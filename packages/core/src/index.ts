@@ -53,6 +53,7 @@ export {
   type SnapGraph,
   type SnapNode,
 } from './geometry/auto-close.ts';
+export { boundaryAtPoint, type BoundaryFace } from './geometry/boundary-at-point.ts';
 export {
   detectSectionPairs,
   groupBySimilarity,

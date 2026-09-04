@@ -2,9 +2,15 @@
  * 캔버스 명령 — Zoom Extents (P1-9), 치수 픽킹 (P1-12), 측정 픽킹 (P2-6).
  * UI 컴포넌트·단축키 핸들러가 호출한다.
  */
-import type { Bounds, NEntity, Vec2 } from '@s-cube/schema';
+import type { Bounds, Measurement, NEntity, Vec2 } from '@s-cube/schema';
 import { checkDimension } from '../lib/calibration.ts';
-import { distancePointToPolyline, entityBounds, mergeBounds } from '../lib/core-api.ts';
+import {
+  type BoundaryFace,
+  boundaryAtPoint,
+  distancePointToPolyline,
+  entityBounds,
+  mergeBounds,
+} from '../lib/core-api.ts';
 import { buildMeasurement } from '../lib/measure.ts';
 import {
   computeSectionAreas,
@@ -73,6 +79,93 @@ export function pickDimensionAt(worldPos: Vec2, pickRadius_px = 12): void {
 /** 측정 픽킹 기본 허용거리 (화면 px, 줌 무관 — world로 환산해 판정) */
 const MEASURE_TOLERANCE_PX = 8;
 
+/** 점 지정 경계 탐색 시작 창 반경(화면 px)·세그먼트 상한 — 국소 부분그래프로 hang 방지 */
+const BOUNDARY_START_PX = 60;
+const BOUNDARY_MAX_SEGMENTS = 200;
+
+/**
+ * RW-22/25: 면적 측정을 활성 대상 셀에 자동 기입/누적한다(대상 셀 지정 시). 순수 부수효과.
+ * @param areaClean 경고(비폐합·0·자기교차) 없을 때만 성공 토스트를 띄운다.
+ */
+function accumulateAreaIntoTargetCell(
+  measurement: Measurement,
+  additive: boolean,
+  areaClean: boolean,
+): void {
+  const s = useAppStore.getState();
+  if (measurement.kind !== 'area' || s.activeStationId === null || s.activeItemKey === null) return;
+  const res = s.acquireAreaIntoCell({
+    anchorSectionId: s.activeStationId,
+    itemKey: s.activeItemKey,
+    area_m2: measurement.value,
+    measurementId: measurement.id,
+    additive,
+  });
+  if (res !== null && areaClean) {
+    s.showToast(
+      res.sourceCount > 1
+        ? `${s.activeItemKey} 누적 ${res.total_m2.toFixed(2)}㎡ (${res.sourceCount}영역 합산)`
+        : `${s.activeItemKey} ${res.total_m2.toFixed(2)}㎡ 자동 기입 · Shift+클릭으로 영역 누적`,
+      'success',
+    );
+  }
+}
+
+/** 엔티티(line·polyline)의 정점 중 하나라도 [center±half] 상자 안에 있는가 */
+function hasVertexInBox(e: NEntity, center: Vec2, half: number): boolean {
+  const inBox = (p: Vec2): boolean =>
+    Math.abs(p.x - center.x) <= half && Math.abs(p.y - center.y) <= half;
+  if (e.kind === 'line') return inBox(e.a) || inBox(e.b);
+  if (e.kind === 'polyline') return e.vertices.some((v) => inBox(v.p));
+  return false;
+}
+
+/**
+ * RW-25: 클릭 지점을 감싸는 최소 폐합 영역을 탐색(해치 픽포인트식) — scene R-tree 로 클릭
+ * 주변 창을 점점 키우며 line/polyline 을 모아 core boundaryAtPoint 에 넘긴다. 세그먼트 상한을
+ * 둬 대형 도면에서도 국소 부분그래프만 처리한다(순환 열거 폭발 방지). 못 찾으면 null.
+ */
+function pickBoundaryFace(worldPos: Vec2): BoundaryFace | null {
+  const s = useAppStore.getState();
+  const model = s.model;
+  if (model === null || scene.index === null) return null;
+  const ppu = s.viewport.pxPerUnit;
+  // 끝점 스냅 허용거리 = 화면 1.5px 상당(줌 적응). 국소 창이라 오병합 위험 낮다.
+  const snapTol = Math.max(1e-6, 1.5 / ppu);
+  // 도면 외곽 프레임(도곽) 배제 — 전체 bounds 면적의 절반 넘는 face 는 무시한다.
+  const bnds = model.bounds;
+  const maxArea =
+    bnds !== null ? Math.max(0, (bnds.maxX - bnds.minX) * (bnds.maxY - bnds.minY)) * 0.5 : undefined;
+  for (let step = 0; step < 4; step++) {
+    const half = (BOUNDARY_START_PX / ppu) * 2 ** step;
+    const hits = scene.index.search({
+      minX: worldPos.x - half,
+      minY: worldPos.y - half,
+      maxX: worldPos.x + half,
+      maxY: worldPos.y + half,
+    });
+    const segs: NEntity[] = [];
+    let overflow = false;
+    for (const hit of hits) {
+      const e = model.entities[hit.i];
+      if (e === undefined || (e.kind !== 'line' && e.kind !== 'polyline')) continue;
+      // R-tree 는 bbox 겹침만 본다 → 도면 외곽 프레임(거대 폐합 폴리라인)은 bbox 가 창을
+      // 덮어 모든 클릭에 걸린다. 실제 **정점이 창 안에 있는** 세그먼트만 채택해 프레임을 배제.
+      if (!hasVertexInBox(e, worldPos, half)) continue;
+      segs.push(e);
+      if (segs.length > BOUNDARY_MAX_SEGMENTS) {
+        overflow = true;
+        break;
+      }
+    }
+    if (overflow) break; // 너무 조밀 — 창 확장 무의미, 포기(안내로 폴백)
+    if (segs.length < 3) continue;
+    const face = boundaryAtPoint(segs, worldPos, snapTol, maxArea);
+    if (face !== null) return face;
+  }
+  return null;
+}
+
 /**
  * 측정 픽킹 (P2-6) — 클릭 world점 → R-tree 후보축소 → 정밀 판정 → Measurement 생성.
  *
@@ -110,8 +203,39 @@ export function pickMeasureAt(worldPos: Vec2, additive = false): void {
     return raw.kind === 'area' ? Math.abs(raw.rawValue) : Number.POSITIVE_INFINITY;
   });
 
+  // 빈 공간(선·폐합객체 위가 아님) 클릭 → 점 지정 경계 탐색(해치처럼): 클릭을 감싸는 최소
+  // 폐합 영역의 면적을 취득한다. 절토/성토처럼 여러 선으로 둘러싸인 영역을 점 하나로 잡는다.
   if (best === null) {
-    s.showToast('근처에서 측정할 객체를 찾지 못했습니다', 'info');
+    const face = pickBoundaryFace(worldPos);
+    if (face !== null) {
+      const m = buildMeasurement(
+        {
+          id: crypto.randomUUID(),
+          drawingId: s.activeId,
+          kind: 'area',
+          rawValue: face.areaRaw,
+          method: 'auto-boundary',
+          sourceHandles: face.handles,
+          holes: [],
+          label: `면적 ${face.handles[0] ?? '경계'}`,
+          createdAt: new Date().toISOString(),
+        },
+        cal.scale,
+      );
+      const prior = s.selectedMeasurementIds;
+      s.addMeasurement(m);
+      if (additive) useAppStore.setState({ selectedMeasurementIds: [...prior, m.id] });
+      accumulateAreaIntoTargetCell(m, additive, true);
+      if (s.activeStationId === null || s.activeItemKey === null) {
+        s.showToast(`면적 ${m.value.toFixed(2)}㎡ 취득 (경계 자동탐색)`, 'success');
+      }
+      return;
+    }
+    // 경계도 객체도 없음 — 절토/성토 단면은 2클릭 단면적 취득 도구로 안내.
+    s.showToast(
+      "닫힌 경계를 찾지 못했습니다 — 절토/성토 단면은 '단면적 취득' 도구로 원지반선·계획선을 차례로 클릭하세요",
+      'warn',
+    );
     return;
   }
 
@@ -163,25 +287,11 @@ export function pickMeasureAt(worldPos: Vec2, additive = false): void {
   // RW-22: 면적 대상 셀이 지정돼 있으면 이 면적을 측점 셀에 자동 기입/누적한다.
   // 반자동 핵심 — 사람은 도면 영역만 클릭, 면적 산정·축척²·셀 기입은 도구가 수행.
   // 일반 클릭 = 이 영역으로 교체, Shift+클릭 = 기존 값에 누적(여러 폐합영역 합산).
-  if (raw.kind === 'area' && s.activeStationId !== null && s.activeItemKey !== null) {
-    const res = s.acquireAreaIntoCell({
-      anchorSectionId: s.activeStationId,
-      itemKey: s.activeItemKey,
-      area_m2: measurement.value,
-      measurementId: measurement.id,
-      additive,
-    });
-    // 경고(비폐합·0·자기교차)가 없을 때만 성공 토스트로 결과를 알린다(경고는 유지).
-    const areaClean = raw.openGap === null && !raw.zeroArea && !raw.selfIntersecting;
-    if (res !== null && areaClean) {
-      s.showToast(
-        res.sourceCount > 1
-          ? `${s.activeItemKey} 누적 ${res.total_m2.toFixed(2)}㎡ (${res.sourceCount}영역 합산)`
-          : `${s.activeItemKey} ${res.total_m2.toFixed(2)}㎡ 자동 기입 · Shift+클릭으로 영역 누적`,
-        'success',
-      );
-    }
-  }
+  accumulateAreaIntoTargetCell(
+    measurement,
+    additive,
+    raw.openGap === null && !raw.zeroArea && !raw.selfIntersecting,
+  );
 }
 
 /** 단면적 취득 프로파일 픽킹 허용거리 (화면 px) — 선(line·open polyline) 근접 판정. */

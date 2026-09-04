@@ -17,7 +17,11 @@ const TOOLS: readonly ToolDef[] = [
   { id: 'pan', label: '이동', hint: '드래그로 팬 · 휠로 줌' },
   { id: 'calibrate', label: '캘리브레이션', hint: '2점 클릭 → 실제 거리 입력' },
   { id: 'dim-check', label: '치수 대조', hint: 'DIMENSION 클릭 → 오차 확인' },
-  { id: 'measure', label: '측정', hint: '폐합영역 클릭 → 면적 · 선 클릭 → 연장' },
+  {
+    id: 'measure',
+    label: '측정',
+    hint: '영역 안쪽 클릭 → 경계 자동탐색 면적(해치처럼) · 폐합객체 클릭 → 면적 · 선 클릭 → 연장',
+  },
   {
     id: 'section-area',
     label: '단면적 취득',

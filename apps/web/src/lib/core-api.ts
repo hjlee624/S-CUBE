@@ -83,6 +83,19 @@ export const isSelfIntersecting: (vertices: PVertex[]) => boolean = core.isSelfI
 /** 폴리라인 길이 (직선 + bulge 호장, 도면 단위) — core 기존 export 재노출 */
 export const polylineLength: (vertices: PVertex[], closed: boolean) => number = core.polylineLength;
 
+/** 점을 감싸는 최소 폐합 영역 탐색 (RW-25, 해치 픽포인트식 면적 취득) */
+export interface BoundaryFace {
+  vertices: Vec2[];
+  areaRaw: number;
+  handles: string[];
+}
+export const boundaryAtPoint: (
+  segments: readonly NEntity[],
+  point: Vec2,
+  snapTolerance: number,
+  maxArea?: number,
+) => BoundaryFace | null = core.boundaryAtPoint;
+
 /**
  * 두 프로파일(원지반선·계획선) 사이 절토/성토 단면적 (P3-13) — 도면 단위².
  *
