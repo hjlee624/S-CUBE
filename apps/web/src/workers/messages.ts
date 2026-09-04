@@ -24,6 +24,12 @@ export interface ParseRequest {
   file: File;
 }
 
+/** 메인 → DWG 워커: DWG 브라우저 변환+파싱 요청 (RW-24) */
+export interface ParseDwgRequest {
+  type: 'parse-dwg';
+  file: File;
+}
+
 /** 워커 → 메인 */
 export type ParseResponse =
   | {
@@ -32,5 +38,11 @@ export type ParseResponse =
       /** 0~1. 단계 내 진행률을 알 수 없으면 -1 (indeterminate) */
       progress: number;
     }
-  | { type: 'done'; model: DrawingModel; elapsed_ms: number }
+  | {
+      type: 'done';
+      model: DrawingModel;
+      elapsed_ms: number;
+      /** DWG 변환 시 미지원으로 건너뛴 형식별 개수 (RW-24). DXF 경로는 미설정. */
+      skipped?: Record<string, number>;
+    }
   | { type: 'error'; message: string };

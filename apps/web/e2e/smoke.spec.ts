@@ -34,6 +34,30 @@ test.describe('S-CUBE 스모크 — 앱 로드', () => {
   });
 });
 
+test.describe('S-CUBE DWG 브라우저 변환 준비 (RW-24)', () => {
+  test('libredwg WASM 자산이 워커 경로(/libredwg/)로 서빙되고 유효한 모듈이다', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    // DWG 워커의 LibreDwg.create("/libredwg") 가 로드하는 바로 그 경로.
+    const result = await page.evaluate(async () => {
+      const res = await fetch('/libredwg/libredwg-web.wasm');
+      if (!res.ok) return { ok: false, status: res.status, valid: false };
+      const bytes = await res.arrayBuffer();
+      try {
+        // 유효한 WASM 모듈인지 컴파일로 검증(내용 무결성).
+        await WebAssembly.compile(bytes);
+        return { ok: true, status: res.status, valid: true, size: bytes.byteLength };
+      } catch {
+        return { ok: true, status: res.status, valid: false, size: bytes.byteLength };
+      }
+    });
+    expect(result.ok).toBe(true);
+    expect(result.valid).toBe(true);
+    expect(result.size ?? 0).toBeGreaterThan(1_000_000); // ~9.5MB
+  });
+});
+
 test.describe('S-CUBE 클릭 수 회귀 지표 (NFR-8)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');

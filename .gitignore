@@ -7,6 +7,9 @@ dist/
 build/
 *.tsbuildinfo
 
+# RW-24: libredwg WASM (node_modules 에서 dev/build 시 복사 — 9.5MB, 커밋하지 않음)
+apps/web/public/libredwg/
+
 # env / local
 .env
 .env.local

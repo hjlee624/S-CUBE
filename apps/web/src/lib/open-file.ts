@@ -6,7 +6,7 @@
  * 서버 미기동→토스트) 후, 변환된 DXF 텍스트를 기존 파싱 파이프라인에 그대로 투입.
  */
 import { useAppStore } from '../store/index.ts';
-import type { ParseRequest, ParseResponse } from '../workers/messages.ts';
+import type { ParseDwgRequest, ParseRequest, ParseResponse } from '../workers/messages.ts';
 import {
   backendDisplayName,
   convertDwgFile,
@@ -50,10 +50,107 @@ export function openDrawingFile(file: File): void {
 }
 
 /**
- * DWG 경로 — 서버 변환 후 DXF로 재진입.
- * seq가 어긋나면(도중에 다른 파일 열림) 결과를 조용히 폐기한다.
+ * DWG 경로 (RW-24) — 브라우저 WASM 리더로 직접 변환(서버·exe 불필요) 1순위,
+ * 실패 시 기존 서버 변환 경로로 폴백.
  */
 async function openDwgFile(file: File, seq: number): Promise<void> {
+  try {
+    await parseDwgViaWasm(file, seq);
+  } catch (err) {
+    if (seq !== openSeq) return;
+    const message = err instanceof Error ? err.message : 'DWG 브라우저 변환 실패';
+    // WASM 실패(드묾) → 네이티브 서버 변환(LibreDWG/ODA) 폴백. 그것도 없으면 안내 모달.
+    useAppStore
+      .getState()
+      .showToast(`브라우저 DWG 변환 실패(${message}) — 서버 변환으로 재시도합니다`, 'warn');
+    await openDwgFileViaServer(file, seq);
+  }
+}
+
+/**
+ * DWG 브라우저 변환 — 전용 워커에서 libredwg-web 리더 + core dwgDatabaseToDxf +
+ * parseAndNormalizeDxf 를 수행한다. 하드 타임아웃으로 드문 WASM 무한루프를 방어한다.
+ * done 이면 모델 확정, error/timeout 이면 reject → 상위에서 서버 폴백.
+ */
+function parseDwgViaWasm(file: File, seq: number): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const store = useAppStore.getState();
+    activeWorker?.terminate();
+    const worker = new Worker(new URL('../workers/dwg-parse.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    activeWorker = worker;
+    // 백엔드 라벨 'LibreDWG' 로 로딩 오버레이 표기 재사용.
+    store.startLoading(file.name, 'libredwg');
+    store.setLoadProgress('convert', -1);
+
+    // 하드 타임아웃(90초) — 일부 도면의 WASM 무한루프 대비. 종료 후 폴백.
+    const timeoutId = setTimeout(() => {
+      worker.terminate();
+      if (activeWorker === worker) activeWorker = null;
+      reject(new Error('변환 시간 초과(90초)'));
+    }, 90_000);
+
+    const finish = () => {
+      clearTimeout(timeoutId);
+      worker.terminate();
+      if (activeWorker === worker) activeWorker = null;
+    };
+
+    worker.onmessage = (ev: MessageEvent<ParseResponse>) => {
+      const msg = ev.data;
+      // 도중에 다른 파일이 열렸으면 조용히 폐기(성공 처리로 종료).
+      if (seq !== openSeq) {
+        finish();
+        resolve();
+        return;
+      }
+      const s = useAppStore.getState();
+      switch (msg.type) {
+        case 'progress':
+          s.setLoadProgress(msg.stage, msg.progress);
+          break;
+        case 'done': {
+          applyLoadedModel(msg.model, file.name);
+          pushRecentFile(file.name, msg.model.entities.length);
+          const skippedTotal = msg.skipped
+            ? Object.values(msg.skipped).reduce((a, b) => a + b, 0)
+            : 0;
+          const after = useAppStore.getState();
+          const restoredNote = after.calibration !== null ? ' · 저장된 캘리브레이션 복원됨' : '';
+          const skippedNote =
+            skippedTotal > 0 ? ` · 미지원 ${skippedTotal.toLocaleString('ko-KR')}개 형식 제외` : '';
+          s.showToast(
+            `${file.name} — ${msg.model.entities.length.toLocaleString('ko-KR')}개 엔티티 로드 (${Math.round(
+              msg.elapsed_ms,
+            )}ms)${restoredNote}${skippedNote}`,
+            'success',
+          );
+          finish();
+          resolve();
+          break;
+        }
+        case 'error':
+          finish();
+          reject(new Error(msg.message));
+          break;
+      }
+    };
+
+    worker.onerror = (ev: ErrorEvent) => {
+      finish();
+      reject(new Error(ev.message !== '' ? ev.message : 'DWG 워커 실행 오류'));
+    };
+
+    worker.postMessage({ type: 'parse-dwg', file } satisfies ParseDwgRequest);
+  });
+}
+
+/**
+ * DWG 서버 변환 폴백 — 로컬 서버(LibreDWG/ODA) 경로. 브라우저 WASM 실패 시에만 진입.
+ * seq가 어긋나면(도중에 다른 파일 열림) 결과를 조용히 폐기한다.
+ */
+async function openDwgFileViaServer(file: File, seq: number): Promise<void> {
   const route = await fetchDwgRoute();
   if (seq !== openSeq) return;
   const store = useAppStore.getState();

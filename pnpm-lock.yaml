@@ -39,6 +39,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@mlightcad/libredwg-web':
+        specifier: ^0.7.10
+        version: 0.7.10
       '@s-cube/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -196,6 +199,10 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@mlightcad/libredwg-web@0.7.10':
+    resolution: {integrity: sha512-L9wnwQn8cgHIr6I5El/8TgKSXaRacW9vytSpsU19xufmrnAAqEEGcW0MU92PgEiDKuQtU4GBenERIDfSrbY99g==}
+    engines: {node: '>=20'}
 
   '@oxc-project/types@0.147.0':
     resolution: {integrity: sha512-IJ3s6ltHLp45S0bh7phkX+gJO7A1Wuz2EaqpAhb8WjqDwbzMiWKHhyyT42tskaWjEYXtHtVCPpnBJVT9+dcRLg==}
@@ -1253,6 +1260,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@mlightcad/libredwg-web@0.7.10': {}
 
   '@oxc-project/types@0.147.0': {}
 

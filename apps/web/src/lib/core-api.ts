@@ -19,6 +19,12 @@ export interface BulgeArc {
 /** DXF 텍스트 → 정규화 완료 DrawingModel */
 export const parseAndNormalizeDxf: (text: string) => DrawingModel = core.parseAndNormalizeDxf;
 
+/** DwgDatabase(덕 타이핑) → DXF 텍스트 (RW-24, DWG 브라우저 변환) */
+export const dwgDatabaseToDxf: (db: core.DwgLikeDatabase) => core.DwgToDxfResult =
+  core.dwgDatabaseToDxf;
+export type DwgLikeDatabase = core.DwgLikeDatabase;
+export type DwgToDxfResult = core.DwgToDxfResult;
+
 /** 폴리라인 bulge 세그먼트를 원호(중심/반지름/각도)로 변환 */
 export const bulgeToArc: (a: Vec2, b: Vec2, bulge: number) => BulgeArc = core.bulgeToArc;
 

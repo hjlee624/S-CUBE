@@ -16,6 +16,12 @@ export {
   UNSUPPORTED_KEY_MISSING_BLOCK,
 } from './dxf/expand.ts';
 export { parseAndNormalizeDxf } from './dxf/pipeline.ts';
+export {
+  dwgDatabaseToDxf,
+  type DwgLikeDatabase,
+  type DwgLikeEntity,
+  type DwgToDxfResult,
+} from './dwg/dwg-to-dxf.ts';
 // geometry/ — 렌더·측정 공용 프리미티브
 export {
   bulgeSegmentArea,
