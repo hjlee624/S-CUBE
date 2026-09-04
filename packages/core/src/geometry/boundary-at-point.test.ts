@@ -60,6 +60,20 @@ describe('boundaryAtPoint (RW-25)', () => {
     expect(frameOnly).toBeNull();
   });
 
+  it('교차하는 대각선이 만든 삼각형 영역 인식 (RW-26 교차분할)', () => {
+    // 사각형(0,0)-(100,100) + 두 대각선. 대각선은 (50,50)에서 교차만 하고 끝점 공유 안 함.
+    // 교차분할이 없으면 삼각형이 닫히지 않는다. 하단 삼각형 내부 점(50,20) → 넓이 2500 삼각형.
+    const segs: NEntity[] = [
+      ...rect(0, 0, 100, 100, 'S'),
+      { kind: 'line', handle: 'D1', layer: '0', a: { x: 0, y: 0 }, b: { x: 100, y: 100 } },
+      { kind: 'line', handle: 'D2', layer: '0', a: { x: 100, y: 0 }, b: { x: 0, y: 100 } },
+    ];
+    const face = boundaryAtPoint(segs, { x: 50, y: 20 }, SNAP);
+    expect(face).not.toBeNull();
+    // 하단 삼각형 (0,0),(100,0),(50,50) → 넓이 = 100×50/2 = 2500 (전체 10000 아님)
+    expect(face?.areaRaw).toBeCloseTo(2500, 1);
+  });
+
   it('polyline 폐합 경계도 인식', () => {
     const segs: NEntity[] = [
       {

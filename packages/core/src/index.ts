@@ -54,6 +54,7 @@ export {
   type SnapNode,
 } from './geometry/auto-close.ts';
 export { boundaryAtPoint, type BoundaryFace } from './geometry/boundary-at-point.ts';
+export { splitAtIntersections } from './geometry/intersect-split.ts';
 export {
   detectSectionPairs,
   groupBySimilarity,
