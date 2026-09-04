@@ -29,6 +29,17 @@
   --color-zinc-900: #f4f4f5;
   --color-zinc-950: #fafafa;
 
+  /*
+   * ── 라이트 테마 액센트 보정 (emerald) ──
+   * 밝은 배경에서 active/hover 상태가 emerald 틴트 배경 + 연한 emerald 글자(text-emerald-300 등)로
+   * 바뀌면 글씨가 안 보인다. 텍스트로 쓰이는 밝은 emerald shade(200/300/400)만 진한 녹색으로
+   * 낮춰 대비를 확보한다. 솔리드 버튼 배경(bg-emerald-500)은 그대로 두어 밝은 글자와 대비 유지.
+   * (캔버스 다크 영역은 .canvas-dark 에서 원래 밝은 emerald 로 되돌린다.)
+   */
+  --color-emerald-200: #047857; /* emerald-700 */
+  --color-emerald-300: #047857; /* emerald-700 — 액센트 텍스트 주 색 */
+  --color-emerald-400: #059669; /* emerald-600 */
+
   /* ── 이징 토큰 (레퍼런스: Krepling expo-out, RedSun back-out, Cartesia in-expo) ── */
   --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
@@ -311,6 +322,10 @@ body,
   --color-zinc-800: #27272a;
   --color-zinc-900: #18181b;
   --color-zinc-950: #09090b;
+  /* 어두운 캔버스 위 오버레이는 밝은 emerald 텍스트 유지 (전역 진한 remap 되돌림) */
+  --color-emerald-200: #a7f3d0;
+  --color-emerald-300: #6ee7b7;
+  --color-emerald-400: #34d399;
 }
 
 /* 캔버스 위 커서·스크롤 관성 억제 */
