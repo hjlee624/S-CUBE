@@ -60,7 +60,6 @@ interface DragState {
 export function CanvasStage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
-  const regionDragRef = useRef<{ pointerId: number; startWorld: Vec2 } | null>(null);
   const [isDropTarget, setIsDropTarget] = useState(false);
 
   const model = useAppStore((s) => s.model);
@@ -133,13 +132,19 @@ export function CanvasStage() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = useAppStore.getState();
-      if (s.activeTool !== 'region-area' || s.regionFaces.length === 0) return;
-      if (e.key === 'Enter') {
+      if (s.activeTool !== 'region-area') return;
+      if (e.key === 'Escape') {
+        // 진행 중인 첫 점·탐지 결과 모두 취소
         e.preventDefault();
-        confirmRegionSelection(e.shiftKey);
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
+        overlay.regionDragRect = null;
         s.clearRegionFaces();
+        return;
+      }
+      if (s.regionFaces.length === 0) return;
+      if (e.key === 'Enter') {
+        // 선택 구간 합계를 측점 셀에 **누적** 기입(측점별 면적 누적).
+        e.preventDefault();
+        confirmRegionSelection(true);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -176,13 +181,24 @@ export function CanvasStage() {
       // 2클릭 흐름: 1클릭 원지반선 → 2클릭 계획선 → cut/fill 자동 기입.
       pickSectionProfileAt(world);
     } else if (s.activeTool === 'region-area') {
-      // 탐지 전이면 사각형 드래그 시작, 탐지 후면 클릭으로 면 선택 토글.
-      if (s.regionFaces.length === 0) {
-        regionDragRef.current = { pointerId: e.pointerId, startWorld: world };
-        overlay.regionDragRect = { start: world, end: world };
-        e.currentTarget.setPointerCapture(e.pointerId);
-      } else {
+      // CAD식 2점 클릭: 탐지 후면 클릭으로 면 선택 토글, 탐지 전이면 첫 점→두 번째 점으로 사각형.
+      if (s.regionFaces.length > 0) {
         toggleRegionFaceAt(world);
+      } else if (overlay.regionDragRect === null) {
+        // 첫 점 지정 — 이후 커서로 미리보기, 두 번째 클릭에서 확정.
+        overlay.regionDragRect = { start: world, end: world };
+        s.showToast('두 번째 점을 클릭해 사각형 범위를 정하세요', 'info');
+      } else {
+        // 두 번째 점 → 사각형 범위 확정 + 폐합공간 탐지.
+        const start = overlay.regionDragRect.start;
+        overlay.regionDragRect = null;
+        const minX = Math.min(start.x, world.x);
+        const minY = Math.min(start.y, world.y);
+        const maxX = Math.max(start.x, world.x);
+        const maxY = Math.max(start.y, world.y);
+        if (maxX - minX > 1e-6 && maxY - minY > 1e-6) {
+          detectFacesInRect({ minX, minY, maxX, maxY });
+        }
       }
     }
   };
@@ -200,10 +216,9 @@ export function CanvasStage() {
     const rect = e.currentTarget.getBoundingClientRect();
     const size = { width: rect.width, height: rect.height };
     const world = screenToWorld(pos, s.viewport, size);
-    // 영역 사각형 드래그 갱신
-    const rdrag = regionDragRef.current;
-    if (rdrag !== null && rdrag.pointerId === e.pointerId) {
-      overlay.regionDragRect = { start: rdrag.startWorld, end: world };
+    // 영역 2점 선택: 첫 점 지정 후 커서로 미리보기 사각형 갱신
+    if (s.activeTool === 'region-area' && overlay.regionDragRect !== null) {
+      overlay.regionDragRect = { start: overlay.regionDragRect.start, end: world };
     }
     overlay.cursorWorld = world;
     overlay.snap =
@@ -217,24 +232,6 @@ export function CanvasStage() {
     if (dragRef.current?.pointerId === e.pointerId) {
       dragRef.current = null;
       e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-    // 영역 사각형 드래그 종료 → 그 안의 폐합면 탐지
-    const rdrag = regionDragRef.current;
-    if (rdrag !== null && rdrag.pointerId === e.pointerId) {
-      regionDragRef.current = null;
-      e.currentTarget.releasePointerCapture(e.pointerId);
-      const r = overlay.regionDragRect;
-      overlay.regionDragRect = null;
-      if (r !== null) {
-        const minX = Math.min(r.start.x, r.end.x);
-        const minY = Math.min(r.start.y, r.end.y);
-        const maxX = Math.max(r.start.x, r.end.x);
-        const maxY = Math.max(r.start.y, r.end.y);
-        // 너무 작은 드래그(오클릭)는 무시
-        if (maxX - minX > 1e-6 && maxY - minY > 1e-6) {
-          detectFacesInRect({ minX, minY, maxX, maxY });
-        }
-      }
     }
   };
 

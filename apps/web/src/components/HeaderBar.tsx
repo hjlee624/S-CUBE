@@ -30,7 +30,7 @@ const TOOLS: readonly ToolDef[] = [
   {
     id: 'region-area',
     label: '영역 면적',
-    hint: '사각형으로 범위 드래그 → 폐합 공간 자동 탐지 → 원하는 것만 클릭 선택 → Enter로 합계 기입',
+    hint: '첫 점 클릭 → 두 번째 점 클릭(사각형 범위) → 폐합 공간 자동 탐지 → 적용할 것만 클릭 선택 → Enter로 측점 셀에 누적 기입',
   },
 ];
 

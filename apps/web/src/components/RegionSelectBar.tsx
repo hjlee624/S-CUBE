@@ -34,16 +34,17 @@ export function RegionSelectBar() {
           합계 {sum_m2.toFixed(2)} ㎡
         </span>
         <span className="hidden text-[11px] text-zinc-500 sm:inline">
-          도면에서 공간 클릭 = 선택 토글 · {hasTarget ? `대상 셀에 기입` : '대상 셀 미지정(측정만 생성)'}
+          도면에서 공간 클릭 = 선택 토글 ·{' '}
+          {hasTarget ? '대상 셀에 누적 기입' : '대상 셀 미지정(측정만 생성)'}
         </span>
         <div className="ml-auto flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => confirmRegionSelection(false)}
+            onClick={() => confirmRegionSelection(true)}
             disabled={selected.length === 0}
             className="rounded-md bg-emerald-500 px-3 py-1 text-xs font-semibold text-white shadow-sm transition-all duration-150 hover:bg-emerald-600 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            기입 (Enter)
+            누적 기입 (Enter)
           </button>
           <button
             type="button"
