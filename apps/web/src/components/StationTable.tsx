@@ -467,18 +467,18 @@ export function StationTable() {
             </span>
             <span className="text-zinc-400">
               {measureReady
-                ? activeTool === 'measure'
-                  ? '도면에서 영역(폐합)을 클릭 → 자동 기입 · Shift+클릭으로 누적 합산'
-                  : '측정 도구로 전환 후 도면 영역을 클릭하세요'
+                ? activeTool === 'region-area'
+                  ? '도면에서 첫 점 클릭 → 두 번째 점 클릭(사각형 범위) → 폐합공간 선택 → Enter로 누적 기입'
+                  : '영역 선택 도구로 전환 후 도면에서 범위를 두 점으로 잡으세요'
                 : '먼저 캘리브레이션(축척)이 필요합니다'}
             </span>
-            {measureReady && activeTool !== 'measure' && (
+            {measureReady && activeTool !== 'region-area' && (
               <button
                 type="button"
-                onClick={() => setActiveTool('measure')}
+                onClick={() => setActiveTool('region-area')}
                 className="rounded-md bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-zinc-950 transition-all duration-150 hover:bg-emerald-400 active:scale-[0.97]"
               >
-                측정 도구 켜기
+                영역 선택 도구 켜기
               </button>
             )}
             <button
@@ -556,8 +556,14 @@ export function StationTable() {
                           onAssign={() => assignCell(row, key)}
                           isTarget={isTarget}
                           onToggleTarget={() => {
-                            if (isTarget) setAreaTargetCell(null, null);
-                            else if (anchorId !== null) setAreaTargetCell(anchorId, key);
+                            if (isTarget) {
+                              setAreaTargetCell(null, null);
+                            } else if (anchorId !== null) {
+                              setAreaTargetCell(anchorId, key);
+                              // 취득 지정 = 곧바로 범위(2점) 선택 모드로 전환.
+                              // (캘리브레이션 없으면 setActiveTool 가 토스트 후 무시)
+                              setActiveTool('region-area');
+                            }
                           }}
                         />
                       );
