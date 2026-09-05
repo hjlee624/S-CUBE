@@ -96,6 +96,25 @@ export const boundaryAtPoint: (
   maxArea?: number,
 ) => BoundaryFace | null = core.boundaryAtPoint;
 
+/** 사각형 범위 안의 모든 폐합면 탐지 (RW-28) — 세그먼트 과다면 null */
+export interface TracedFace {
+  vertices: Vec2[];
+  areaRaw: number;
+  handles: string[];
+}
+export interface Rect {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+export const facesInRegion: (
+  segments: readonly NEntity[],
+  rect: Rect,
+  snapTolerance: number,
+  maxArea: number,
+) => TracedFace[] | null = core.facesInRegion;
+
 /**
  * 두 프로파일(원지반선·계획선) 사이 절토/성토 단면적 (P3-13) — 도면 단위².
  *

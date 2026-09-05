@@ -56,6 +56,14 @@ export {
 export { boundaryAtPoint, type BoundaryFace } from './geometry/boundary-at-point.ts';
 export { splitAtIntersections } from './geometry/intersect-split.ts';
 export {
+  enumerateFaces,
+  faceContainingPoint,
+  facesInRegion,
+  MAX_REGION_SEGMENTS,
+  type Rect,
+  type TracedFace,
+} from './geometry/planar-faces.ts';
+export {
   detectSectionPairs,
   groupBySimilarity,
   type EntityGroup,

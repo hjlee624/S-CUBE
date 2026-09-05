@@ -9,7 +9,10 @@ import {
   boundaryAtPoint,
   distancePointToPolyline,
   entityBounds,
+  facesInRegion,
   mergeBounds,
+  pointInPolygon,
+  type Rect,
 } from '../lib/core-api.ts';
 import { buildMeasurement } from '../lib/measure.ts';
 import {
@@ -452,6 +455,125 @@ export function pickSectionProfileAt(worldPos: Vec2): void {
     : baseMessage;
   const tone = hasWarnings || plan.measurements.length === 0 ? 'warn' : 'success';
   s.showToast(message, tone);
+}
+
+/** 영역 선택 탐지 세그먼트 상한 */
+const REGION_MAX_SEGMENTS = 2500;
+
+/**
+ * RW-28: 사각형 범위 안의 모든 폐합 공간을 탐지해 regionFaces 에 담는다(전부 선택 상태로 시작).
+ * 사용자는 클릭으로 원하지 않는 것을 해제한 뒤 확정하면, 선택된 면적 합이 대상 셀에 기입된다.
+ */
+export function detectFacesInRect(rectWorld: Rect): void {
+  const s = useAppStore.getState();
+  const model = s.model;
+  const cal = s.calibration;
+  if (model === null || cal === null || scene.index === null) return;
+  const hits = scene.index.search({
+    minX: rectWorld.minX,
+    minY: rectWorld.minY,
+    maxX: rectWorld.maxX,
+    maxY: rectWorld.maxY,
+  });
+  const segs: NEntity[] = [];
+  for (const h of hits) {
+    const e = model.entities[h.i];
+    if (e !== undefined && (e.kind === 'line' || e.kind === 'polyline')) {
+      segs.push(e);
+      if (segs.length > REGION_MAX_SEGMENTS) break;
+    }
+  }
+  if (segs.length > REGION_MAX_SEGMENTS) {
+    s.setRegionFaces([]);
+    s.showToast('선택 범위가 너무 큽니다 — 더 좁게 드래그하세요', 'warn');
+    return;
+  }
+  if (segs.length < 3) {
+    s.setRegionFaces([]);
+    s.showToast('범위 안에서 폐합 공간을 찾지 못했습니다', 'info');
+    return;
+  }
+  const b = model.bounds;
+  const maxArea =
+    b !== null ? Math.max(0, (b.maxX - b.minX) * (b.maxY - b.minY)) * 0.5 : Number.POSITIVE_INFINITY;
+  const snapTol = Math.max(1e-6, 1.5 / s.viewport.pxPerUnit);
+  const faces = facesInRegion(segs, rectWorld, snapTol, maxArea);
+  if (faces === null) {
+    s.setRegionFaces([]);
+    s.showToast('선택 범위가 너무 복잡합니다 — 더 좁게 드래그하세요', 'warn');
+    return;
+  }
+  if (faces.length === 0) {
+    s.setRegionFaces([]);
+    s.showToast('범위 안에서 폐합 공간을 찾지 못했습니다', 'info');
+    return;
+  }
+  s.setRegionFaces(
+    faces.map((f) => ({
+      id: crypto.randomUUID(),
+      vertices: f.vertices,
+      areaRaw: f.areaRaw,
+      handles: f.handles,
+      selected: true,
+    })),
+  );
+  s.showToast(
+    `${faces.length}개 폐합 공간 탐지 — 원하지 않는 것은 클릭으로 해제 후 확정(Enter)`,
+    'success',
+  );
+}
+
+/** 클릭 지점을 포함하는 탐지면(가장 안쪽) 선택을 토글. */
+export function toggleRegionFaceAt(worldPos: Vec2): void {
+  const s = useAppStore.getState();
+  let target: string | null = null;
+  let bestArea = Number.POSITIVE_INFINITY;
+  for (const f of s.regionFaces) {
+    if (f.areaRaw < bestArea && pointInPolygon(worldPos, f.vertices.map((p) => ({ p, bulge: 0 })))) {
+      target = f.id;
+      bestArea = f.areaRaw;
+    }
+  }
+  if (target !== null) s.toggleRegionFace(target);
+}
+
+/**
+ * 선택된 탐지면들의 면적 합(㎡)을 대상 셀에 기입한다(additive면 누적). 대상 셀 미지정이면
+ * 측정만 만들고 합계를 토스트로 알린다. 확정 후 탐지 상태를 초기화한다.
+ */
+export function confirmRegionSelection(additive = false): void {
+  const s = useAppStore.getState();
+  const cal = s.calibration;
+  if (cal === null || s.activeId === null) return;
+  const selected = s.regionFaces.filter((f) => f.selected);
+  if (selected.length === 0) {
+    s.showToast('선택된 폐합 공간이 없습니다', 'warn');
+    return;
+  }
+  const rawSum = selected.reduce((acc, f) => acc + f.areaRaw, 0);
+  const handles = [...new Set(selected.flatMap((f) => f.handles))];
+  const m = buildMeasurement(
+    {
+      id: crypto.randomUUID(),
+      drawingId: s.activeId,
+      kind: 'area',
+      rawValue: rawSum,
+      method: 'auto-boundary',
+      sourceHandles: handles,
+      holes: [],
+      label: `영역 면적(${selected.length}개)`,
+      createdAt: new Date().toISOString(),
+    },
+    cal.scale,
+  );
+  const prior = s.selectedMeasurementIds;
+  s.addMeasurement(m);
+  if (additive) useAppStore.setState({ selectedMeasurementIds: [...prior, m.id] });
+  accumulateAreaIntoTargetCell(m, additive, true);
+  if (s.activeStationId === null || s.activeItemKey === null) {
+    s.showToast(`선택 ${selected.length}개 합계 ${m.value.toFixed(2)}㎡ 취득`, 'success');
+  }
+  s.clearRegionFaces();
 }
 
 /**

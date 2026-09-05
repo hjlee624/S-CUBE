@@ -19,7 +19,29 @@ import type { EditableTakeoffItem, TakeoffDraft } from '../lib/takeoff-derive.ts
 import type { ParseStage } from '../workers/messages.ts';
 
 /** 활성 도구 (P1-10, P1-12, P2-6, P3-13 단면적 취득) */
-export type ToolId = 'pan' | 'calibrate' | 'dim-check' | 'measure' | 'section-area';
+export type ToolId =
+  | 'pan'
+  | 'calibrate'
+  | 'dim-check'
+  | 'measure'
+  | 'section-area'
+  | 'region-area';
+
+/**
+ * 범위 선택으로 탐지된 폐합면 (RW-28) — 사각형 드래그 → 그 안의 폐합 공간들. 사용자가 클릭으로
+ * 선택 토글하고, 선택된 것들의 면적 합만 측점 셀에 기입한다.
+ */
+export interface RegionFace {
+  id: string;
+  /** 경계 정점열 (도면 좌표) */
+  vertices: Vec2[];
+  /** 면적 (도면 단위²) — 축척² 환산 전 */
+  areaRaw: number;
+  /** 경계 엔티티 handle (역추적) */
+  handles: string[];
+  /** 합산 대상으로 선택됐는가 */
+  selected: boolean;
+}
 
 /** 하단 측점·체적 도크 탭 (Phase 3-C) */
 export type StationDockTab = 'table' | 'segments' | 'profile';
@@ -345,6 +367,8 @@ export interface UiSlice {
    * (측점 행, 항목 열)로 확정한다. null이면 일반 측정 모드(셀 자동기입 안 함).
    */
   activeItemKey: string | null;
+  /** 범위 선택으로 탐지된 폐합면들 (RW-28). 비어있지 않으면 선택 확정 바를 띄운다. */
+  regionFaces: RegionFace[];
   /** 하단 측점·체적 도크 열림 여부 (Phase 3-C) */
   stationDockOpen: boolean;
   /** 하단 도크 활성 탭 (Phase 3-C) */
@@ -363,6 +387,12 @@ export interface UiSlice {
    * 둘 중 하나라도 null이면 대상 해제(일반 측정 모드).
    */
   setAreaTargetCell: (anchorSectionId: string | null, itemKey: string | null) => void;
+  /** 범위 선택 탐지 결과 설정 (RW-28) */
+  setRegionFaces: (faces: RegionFace[]) => void;
+  /** 탐지면 선택 토글 */
+  toggleRegionFace: (id: string) => void;
+  /** 범위 선택 초기화(취소·확정 후) */
+  clearRegionFaces: () => void;
   showToast: (message: string, tone?: ToastState['tone']) => void;
   dismissToast: (id: number) => void;
   showDwgGuide: (file: File, guide: string) => void;

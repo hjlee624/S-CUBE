@@ -9,6 +9,7 @@ import { DrawingTabs } from './components/DrawingTabs.tsx';
 import { DwgConvertModal } from './components/DwgConvertModal.tsx';
 import { HeaderBar } from './components/HeaderBar.tsx';
 import { LayerPanel } from './components/LayerPanel.tsx';
+import { RegionSelectBar } from './components/RegionSelectBar.tsx';
 import { RightPanel } from './components/RightPanel.tsx';
 import { StatusBar } from './components/StatusBar.tsx';
 import { Toast } from './components/Toast.tsx';
@@ -25,6 +26,7 @@ export function App() {
         <CanvasStage />
         <RightPanel />
         <CalibrationBanner />
+        <RegionSelectBar />
       </div>
 
       {/*

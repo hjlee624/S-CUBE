@@ -13,6 +13,8 @@ export interface OverlayState {
   /** 캔버스 CSS 크기 (렌더러가 갱신) */
   canvasWidth: number;
   canvasHeight: number;
+  /** RW-28: 영역 면적 도구 드래그 사각형 (world 좌표). 드래그 중이 아니면 null */
+  regionDragRect: { start: Vec2; end: Vec2 } | null;
 }
 
 export const overlay: OverlayState = {
@@ -20,4 +22,5 @@ export const overlay: OverlayState = {
   cursorWorld: null,
   canvasWidth: 0,
   canvasHeight: 0,
+  regionDragRect: null,
 };

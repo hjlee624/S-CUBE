@@ -110,7 +110,10 @@ export class CanvasRenderer {
     const state = useAppStore.getState();
     // 스냅 마커 펄스·러버밴드는 시간 기반 애니메이션 → 해당 상태에선 매 프레임 그린다
     const animated =
-      overlay.snap !== null || (state.activeTool === 'calibrate' && state.calibPoints.length > 0);
+      overlay.snap !== null ||
+      (state.activeTool === 'calibrate' && state.calibPoints.length > 0) ||
+      // 영역 면적 도구: 드래그 사각형·탐지면 토글을 매 프레임 반영
+      state.activeTool === 'region-area';
     if (!this.dirty && !animated) return;
     this.dirty = false;
 
@@ -131,6 +134,8 @@ export class CanvasRenderer {
       // 단면적 취득 1단계: 선택된 원지반선을 서로 다른 색(orange)으로 하이라이트
       this.drawSectionGroundHighlight(ctx, model, vp, size, dpr);
     }
+    // RW-28: 영역 면적 도구 — 드래그 사각형 + 탐지된 폐합면(선택/비선택)
+    this.drawRegionOverlay(ctx, state, vp, size);
 
     // 오버레이는 화면 좌표계에서
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -211,6 +216,64 @@ export class CanvasRenderer {
    * 성능경로 훼손 금지: R-tree 뷰포트 컬링 후보 안에서 handle 매칭만 추가로 그린다(컬링 유지).
    * 선택이 없으면 handle 집합이 비어 즉시 반환한다(오버헤드 0).
    */
+  /** RW-28: 영역 면적 도구 — 드래그 사각형 + 탐지 폐합면(선택=emerald 채움, 비선택=회색 파선) */
+  private drawRegionOverlay(
+    ctx: CanvasRenderingContext2D,
+    state: ReturnType<typeof useAppStore.getState>,
+    vp: Viewport,
+    size: CanvasSize,
+  ): void {
+    const rd = overlay.regionDragRect;
+    if (rd !== null) {
+      const a = worldToScreen(rd.start, vp, size);
+      const b = worldToScreen(rd.end, vp, size);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(b.x - a.x);
+      const h = Math.abs(b.y - a.y);
+      ctx.save();
+      ctx.fillStyle = 'rgba(52,211,153,0.07)';
+      ctx.fillRect(x, y, w, h);
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = ACCENT;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x, y, w, h);
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+    const faces = state.regionFaces;
+    if (faces.length === 0) return;
+    ctx.save();
+    for (const f of faces) {
+      if (f.vertices.length < 3) continue;
+      ctx.beginPath();
+      let first = true;
+      for (const v of f.vertices) {
+        const p = worldToScreen(v, vp, size);
+        if (first) {
+          ctx.moveTo(p.x, p.y);
+          first = false;
+        } else ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+      if (f.selected) {
+        ctx.fillStyle = 'rgba(16,185,129,0.22)';
+        ctx.fill();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = ACCENT;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      } else {
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(161,161,170,0.55)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+    ctx.restore();
+  }
+
   private drawMeasureHighlights(
     ctx: CanvasRenderingContext2D,
     model: DrawingModel,

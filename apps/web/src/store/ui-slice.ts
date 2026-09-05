@@ -14,6 +14,7 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
   pendingSectionGround: null,
   activeStationId: null,
   activeItemKey: null,
+  regionFaces: [],
   stationDockOpen: false,
   stationDockTab: 'table',
   workbenchOpen: false,
@@ -39,12 +40,17 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
       s.showToast('단면적 취득은 캘리브레이션 완료 후 사용할 수 있습니다', 'warn');
       return;
     }
+    if (tool === 'region-area' && s.calibration === null) {
+      s.showToast('영역 면적은 캘리브레이션 완료 후 사용할 수 있습니다', 'warn');
+      return;
+    }
     // 도구 전환 시 진행 중이던 캘리브레이션 점·단면적 1단계 선택 초기화. 측정 선택은 measure 이탈 시에만 유지.
     set({
       activeTool: tool,
       calibPoints: [],
       pendingSectionGround: null,
       dimCheck: tool === 'dim-check' ? s.dimCheck : null,
+      regionFaces: [],
     });
   },
 
@@ -58,6 +64,17 @@ export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set, get)
         ? { activeStationId: null, activeItemKey: null }
         : { activeStationId: anchorSectionId, activeItemKey: itemKey },
     ),
+
+  setRegionFaces: (faces) => set({ regionFaces: faces }),
+
+  toggleRegionFace: (id) =>
+    set((s) => ({
+      regionFaces: s.regionFaces.map((f) =>
+        f.id === id ? { ...f, selected: !f.selected } : f,
+      ),
+    })),
+
+  clearRegionFaces: () => set({ regionFaces: [] }),
 
   showToast: (message, tone = 'info') => {
     toastSeq += 1;

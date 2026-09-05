@@ -27,6 +27,11 @@ const TOOLS: readonly ToolDef[] = [
     label: '단면적 취득',
     hint: '측점 선택 → 원지반선 클릭 → 계획선 클릭 (절토·성토 자동 기입)',
   },
+  {
+    id: 'region-area',
+    label: '영역 면적',
+    hint: '사각형으로 범위 드래그 → 폐합 공간 자동 탐지 → 원하는 것만 클릭 선택 → Enter로 합계 기입',
+  },
 ];
 
 /** 캘리브레이션 완료 후에만 쓰는 도구 — 미완료 시 비활성 + 힌트 (FR-2.3) */
@@ -34,6 +39,7 @@ const NEEDS_CALIBRATION: ReadonlySet<ToolId> = new Set<ToolId>([
   'dim-check',
   'measure',
   'section-area',
+  'region-area',
 ]);
 
 export function HeaderBar() {

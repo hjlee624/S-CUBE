@@ -6,9 +6,12 @@
 import type { Vec2 } from '@s-cube/schema';
 import { useEffect, useRef, useState } from 'react';
 import {
+  confirmRegionSelection,
+  detectFacesInRect,
   pickDimensionAt,
   pickMeasureAt,
   pickSectionProfileAt,
+  toggleRegionFaceAt,
   zoomToExtents,
 } from '../canvas/actions.ts';
 import { overlay } from '../canvas/overlay-state.ts';
@@ -57,6 +60,7 @@ interface DragState {
 export function CanvasStage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const regionDragRef = useRef<{ pointerId: number; startWorld: Vec2 } | null>(null);
   const [isDropTarget, setIsDropTarget] = useState(false);
 
   const model = useAppStore((s) => s.model);
@@ -125,6 +129,23 @@ export function CanvasStage() {
     zoomToExtents({ width: canvas.clientWidth, height: canvas.clientHeight });
   }, [fitToken]);
 
+  // RW-28: 영역 면적 도구 — Enter 확정(선택면 합계 기입), Esc 취소(탐지 초기화).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const s = useAppStore.getState();
+      if (s.activeTool !== 'region-area' || s.regionFaces.length === 0) return;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmRegionSelection(e.shiftKey);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        s.clearRegionFaces();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const toCanvasPos = (e: React.PointerEvent<HTMLCanvasElement>): Vec2 => {
     const rect = e.currentTarget.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -154,6 +175,15 @@ export function CanvasStage() {
     } else if (s.activeTool === 'section-area') {
       // 2클릭 흐름: 1클릭 원지반선 → 2클릭 계획선 → cut/fill 자동 기입.
       pickSectionProfileAt(world);
+    } else if (s.activeTool === 'region-area') {
+      // 탐지 전이면 사각형 드래그 시작, 탐지 후면 클릭으로 면 선택 토글.
+      if (s.regionFaces.length === 0) {
+        regionDragRef.current = { pointerId: e.pointerId, startWorld: world };
+        overlay.regionDragRect = { start: world, end: world };
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } else {
+        toggleRegionFaceAt(world);
+      }
     }
   };
 
@@ -170,6 +200,11 @@ export function CanvasStage() {
     const rect = e.currentTarget.getBoundingClientRect();
     const size = { width: rect.width, height: rect.height };
     const world = screenToWorld(pos, s.viewport, size);
+    // 영역 사각형 드래그 갱신
+    const rdrag = regionDragRef.current;
+    if (rdrag !== null && rdrag.pointerId === e.pointerId) {
+      overlay.regionDragRect = { start: rdrag.startWorld, end: world };
+    }
     overlay.cursorWorld = world;
     overlay.snap =
       s.activeTool === 'calibrate' && s.model !== null
@@ -182,6 +217,24 @@ export function CanvasStage() {
     if (dragRef.current?.pointerId === e.pointerId) {
       dragRef.current = null;
       e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    // 영역 사각형 드래그 종료 → 그 안의 폐합면 탐지
+    const rdrag = regionDragRef.current;
+    if (rdrag !== null && rdrag.pointerId === e.pointerId) {
+      regionDragRef.current = null;
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      const r = overlay.regionDragRect;
+      overlay.regionDragRect = null;
+      if (r !== null) {
+        const minX = Math.min(r.start.x, r.end.x);
+        const minY = Math.min(r.start.y, r.end.y);
+        const maxX = Math.max(r.start.x, r.end.x);
+        const maxY = Math.max(r.start.y, r.end.y);
+        // 너무 작은 드래그(오클릭)는 무시
+        if (maxX - minX > 1e-6 && maxY - minY > 1e-6) {
+          detectFacesInRect({ minX, minY, maxX, maxY });
+        }
+      }
     }
   };
 
